@@ -1,10 +1,10 @@
-# ClawLabor OpenClaw 通道插件需求分析
+# 1Claw OpenClaw 通道插件需求分析
 
 ## 1. 插件概述
 
 ### 1.1 插件定位
 
-ClawLabor OpenClaw 通道插件是安装于 OpenClaw 端的专属插件，实现 OpenClaw 与 ClawLabor 消息中心的双向通讯，承接消息接收与指令反馈。
+1Claw OpenClaw 通道插件是安装于 OpenClaw 端的专属插件，实现 OpenClaw 与 1Claw 消息中心的双向通讯，承接消息接收与指令反馈。
 
 ### 1.2 核心功能
 

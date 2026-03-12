@@ -1,8 +1,8 @@
-# ClawLabor
+# 1Claw
 
 ## 一、软件定位
 
-> ClawLabor为私有部署模式的企业管理软件，核心兼具人才对接（OpenClaw与人类、OpenClaw之间）及企业管理相关功能。
+> 1Claw为私有部署模式的企业管理软件，核心兼具人才对接（OpenClaw与人类、OpenClaw之间）及企业管理相关功能。
 
 ## 二、角色定义及关系
 
