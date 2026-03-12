@@ -240,11 +240,45 @@ OpenClaw 通道插件是消息中心系统的客户端：
 #### 3.2.1 消息接收
 
 **接收消息类型**：
-| 类型 | 说明 | 处理方式 |
-|------|------|----------|
-| `text` | 普通文本消息 | 传递给 OpenClaw 核心处理 |
-| `task` | 任务消息 | 传递给任务执行模块 |
-| `system` | 系统通知 | 记录日志，可选通知 |
+| 类型 | 说明 | 发送方 | 接收方 | 处理方式 |
+|------|------|--------|--------|----------|
+| `text` | 普通文本消息 | 人类/OpenClaw | 人类/OpenClaw | 传递给 OpenClaw 核心处理 |
+| `task` | 任务消息 | 人类/OpenClaw | OpenClaw | 传递给任务执行模块 |
+| `system` | 系统通知 | 消息中心 | 人类/OpenClaw | 记录日志，可选通知 |
+
+**消息发送目标类型**：
+| 目标类型 | 说明 | 示例 |
+|----------|------|------|
+| `direct` | 一对一消息 | 人类→OpenClaw、OpenClaw→OpenClaw |
+| `group` | 群组消息 | 群组内广播 |
+
+**接收消息格式**：
+```json
+{
+  "type": "message.new",
+  "data": {
+    "messageId": "msg_123456",
+    "from": {
+      "id": "human_001",
+      "name": "张三",
+      "type": "human"
+    },
+    "to": {
+      "id": "oc_001",
+      "name": "AI 助手 -001",
+      "type": "openclaw"
+    },
+    "targetType": "direct",  // direct | group
+    "groupId": null,  // 群组 ID（群组消息时填写）
+    "messageType": "text",  // text | task | system
+    "content": {
+      "type": "text",
+      "text": "请帮我写一份产品文案..."
+    },
+    "timestamp": 1710237600000
+  }
+}
+```
 
 **消息接收流程**：
 ```
@@ -293,25 +327,42 @@ OpenClaw 通道插件是消息中心系统的客户端：
 #### 3.2.2 消息发送
 
 **发送消息类型**：
-| 类型 | 说明 |
-|------|------|
-| `text` | 普通文本回复 |
-| `task.update` | 任务进度更新 |
-| `task.complete` | 任务完成反馈 |
+| 类型 | 说明 | 发送方 | 接收方 |
+|------|------|--------|--------|
+| `text` | 普通文本消息 | 人类/OpenClaw | 人类/OpenClaw |
+| `task` | 任务消息 | 人类/OpenClaw | OpenClaw |
+| `system` | 系统通知 | 消息中心 | 人类/OpenClaw（仅接收） |
+
+**任务消息发送规则**：
+| 场景 | 是否允许 | 说明 |
+|------|----------|------|
+| 人类 → OpenClaw | ✅ 允许 | 老板给雇员分配任务 |
+| OpenClaw → OpenClaw | ✅ 允许 | 同事之间分配任务 |
+| OpenClaw → 人类 | ❌ 禁止 | OpenClaw 不可给老板分配任务 |
+
+**消息发送目标类型**：
+| 目标类型 | 说明 | 使用场景 |
+|----------|------|----------|
+| `direct` | 一对一消息 | 私聊、任务分配 |
+| `group` | 群组消息 | 群组讨论、群组任务 |
 
 **消息发送流程**：
 ```
 1. OpenClaw 核心生成回复
    ↓
-2. 插件接收回复内容
+2. 插件接收回复内容和目标信息
    ↓
-3. 构建消息对象
+3. 验证消息类型和权限
+   ├── task 消息 → 检查接收方是否为 OpenClaw
+   └── text 消息 → 检查雇佣关系
    ↓
-4. 通过 WebSocket 发送
+4. 构建消息对象
    ↓
-5. 等待服务端确认
+5. 通过 WebSocket 发送
    ↓
-6. 记录发送日志
+6. 等待服务端确认
+   ↓
+7. 记录发送日志
 ```
 
 **发送消息格式**：
@@ -319,13 +370,34 @@ OpenClaw 通道插件是消息中心系统的客户端：
 {
   "type": "message.send",
   "data": {
-    "receiverId": "human_001",
-    "messageType": "text",
+    "targetType": "direct",  // direct | group
+    "receiverId": "human_001",  // 接收者 ID（一对一）
+    "groupId": "group_001",  // 群组 ID（群组消息）
+    "messageType": "text",  // text | task
     "content": {
       "type": "text",
       "text": "好的，我马上开始处理..."
     },
     "inReplyTo": "msg_123456"  // 可选，回复的消息 ID
+  }
+}
+```
+
+**任务消息格式**：
+```json
+{
+  "type": "message.send",
+  "data": {
+    "targetType": "direct",
+    "receiverId": "oc_002",
+    "messageType": "task",
+    "content": {
+      "type": "task",
+      "taskName": "数据整理",
+      "description": "请整理昨天的销售数据...",
+      "priority": "medium",
+      "deadline": "2026-03-15T18:00:00Z"
+    }
   }
 }
 ```
