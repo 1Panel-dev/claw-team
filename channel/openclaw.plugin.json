@@ -1,0 +1,246 @@
+{
+  "id": "claw-team",
+  "name": "Claw Team Channel",
+  "version": "0.1.0",
+  "description": "Channel plugin bridging OpenClaw agents with Claw Team platform (direct/group/@mention).",
+  "channels": ["claw-team"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "channels": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "claw-team": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Claw Team channel plugin configuration.",
+            "properties": {
+              "accounts": {
+                "type": "object",
+                "description": "Per-account settings. Use default for a single Claw Team deployment.",
+                "default": {},
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["baseUrl", "outboundToken", "inboundSigningSecret"],
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "Whether this account is enabled."
+                    },
+                    "baseUrl": {
+                      "type": "string",
+                      "minLength": 1,
+                      "title": "Callback Base URL",
+                      "description": "Base URL of the Claw Team backend used for outbound callbacks."
+                    },
+                    "outboundToken": {
+                      "type": "string",
+                      "minLength": 8,
+                      "title": "Outbound Token",
+                      "description": "Bearer token used when the plugin sends callback events to Claw Team."
+                    },
+                    "inboundSigningSecret": {
+                      "type": "string",
+                      "minLength": 16,
+                      "title": "Inbound Signing Secret",
+                      "description": "HMAC secret used to verify inbound webhook requests from Claw Team."
+                    },
+                    "gateway": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Optional OpenClaw Gateway overrides. If omitted, the plugin falls back to environment variables.",
+                      "properties": {
+                        "baseUrl": {
+                          "type": "string",
+                          "minLength": 1,
+                          "title": "Gateway Base URL",
+                          "description": "Base URL of the OpenClaw Gateway HTTP API."
+                        },
+                        "token": {
+                          "type": "string",
+                          "minLength": 1,
+                          "title": "Gateway Token",
+                          "description": "Bearer token used to call the OpenClaw Gateway."
+                        },
+                        "model": {
+                          "type": "string",
+                          "minLength": 1,
+                          "default": "openclaw",
+                          "title": "Gateway Model",
+                          "description": "Model name sent to /v1/chat/completions."
+                        },
+                        "stream": {
+                          "type": "boolean",
+                          "default": true,
+                          "title": "Gateway Stream",
+                          "description": "Whether the plugin should request streaming responses from the Gateway."
+                        },
+                        "allowInsecureTls": {
+                          "type": "boolean",
+                          "default": false,
+                          "title": "Allow Insecure TLS",
+                          "description": "Allow self-signed or otherwise invalid TLS certificates when calling the Gateway."
+                        }
+                      }
+                    },
+                    "agentDirectory": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Agent routing directory used by direct chat, mention routing, and group broadcast.",
+                      "properties": {
+                        "allowedAgentIds": {
+                          "type": "array",
+                          "title": "Allowed Agent IDs",
+                          "description": "List of agent IDs that this account is allowed to route to.",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "aliases": {
+                          "type": "object",
+                          "title": "Agent Aliases",
+                          "description": "Maps mention aliases such as tester to real agent IDs such as qa.",
+                          "additionalProperties": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      }
+                    },
+                    "limits": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Safety and rate limits for inbound traffic and agent dispatching.",
+                      "properties": {
+                        "maxBroadcastAgents": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 500,
+                          "default": 50,
+                          "description": "Maximum number of agents allowed in one group broadcast."
+                        },
+                        "maxInFlightRuns": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 500,
+                          "default": 20,
+                          "description": "Maximum number of runs executing concurrently for this account."
+                        },
+                        "perAgentConcurrency": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 50,
+                          "default": 2,
+                          "description": "Maximum concurrent runs allowed for a single agent."
+                        },
+                        "maxBodyBytes": {
+                          "type": "integer",
+                          "minimum": 1024,
+                          "maximum": 2097152,
+                          "default": 1048576,
+                          "description": "Maximum allowed inbound request body size in bytes."
+                        },
+                        "timeSkewMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 3600000,
+                          "default": 300000,
+                          "description": "Maximum allowed timestamp skew when verifying inbound signatures."
+                        },
+                        "nonceTtlSeconds": {
+                          "type": "integer",
+                          "minimum": 30,
+                          "maximum": 3600,
+                          "default": 600,
+                          "description": "How long an inbound nonce stays valid for replay protection."
+                        }
+                      }
+                    },
+                    "idempotency": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Duplicate message protection settings.",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": ["memory", "redis"],
+                          "default": "memory",
+                          "description": "Idempotency backend."
+                        },
+                        "ttlSeconds": {
+                          "type": "integer",
+                          "minimum": 10,
+                          "maximum": 604800,
+                          "default": 86400,
+                          "description": "How long dedupe keys remain valid."
+                        },
+                        "redisUrl": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Redis connection string, only used when mode is redis."
+                        }
+                      }
+                    },
+                    "retry": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Callback retry policy and dead-letter settings.",
+                      "properties": {
+                        "maxAttempts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 50,
+                          "default": 10,
+                          "description": "Maximum callback retry attempts after the initial send."
+                        },
+                        "baseDelayMs": {
+                          "type": "integer",
+                          "minimum": 50,
+                          "maximum": 60000,
+                          "default": 500,
+                          "description": "Base delay in milliseconds for exponential backoff."
+                        },
+                        "maxDelayMs": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 600000,
+                          "default": 60000,
+                          "description": "Maximum callback retry delay in milliseconds."
+                        },
+                        "jitterRatio": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "default": 0.2,
+                          "description": "Random jitter ratio applied to retry backoff."
+                        },
+                        "deadLetterFile": {
+                          "type": "string",
+                          "minLength": 1,
+                          "default": "./claw-team.dlq.jsonl",
+                          "description": "Path to the dead-letter file used after retries are exhausted."
+                        },
+                        "callbackTimeoutMs": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 60000,
+                          "default": 8000,
+                          "description": "Timeout for one callback HTTP request."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

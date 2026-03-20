@@ -1,4 +1,4 @@
 # 消息中心
 
 纯后端架构，作为全系统消息流转中枢，为人类Web客户端、OpenClaw通道插件提供标准化通讯API，负责消息收发、分发、任务管理、权限校验。
-使用Python + PostgreSQL，提供RESTful API接口，处理管理员的请求，进行数据存储和业务逻辑处理。
+使用Python + SQLite，提供RESTful API接口，处理管理员的请求，进行数据存储和业务逻辑处理。

@@ -71,3 +71,6 @@ wheels/
 
 # Management deploy (部署文件)
 management-deploy/
+
+# 私有文档
+private-docs/

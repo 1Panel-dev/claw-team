@@ -1,0 +1,32 @@
+{
+  "name": "@acme/claw-team",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenClaw Claw Team channel plugin (v2026.3.13 target).",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "openclaw": {
+    "extensions": ["./dist/index.js"]
+  },
+  "files": ["dist", "openclaw.plugin.json", "README.md"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "undici": "^6.19.8",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsup": "^8.3.0",
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.9"
+  }
+}
