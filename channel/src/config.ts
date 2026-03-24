@@ -15,6 +15,10 @@ export const GatewayConfigSchema = z
         baseUrl: z.string().min(1).optional(),
         // Gateway 如果启用了 Bearer Token，可直接配在这里。
         token: z.string().min(1).optional(),
+        // 运行时传输层；默认 auto，按宿主 chatCompletions 开关在 HTTP 和 plugin_runtime 之间选择。
+        transport: z
+            .enum(["auto", "chat_completions", "plugin_runtime"])
+            .optional(),
         // 以下字段不在 schema 层提前打默认值，方便后面统一走“配置优先，环境变量兜底”的解析逻辑。
         model: z.string().min(1).optional(),
         stream: z.boolean().optional(),
@@ -95,6 +99,7 @@ export type AgentDirectoryEntry = {
 export type GatewayRuntimeConfig = {
     baseUrl: string;
     token?: string;
+    transport: "auto" | "chat_completions" | "plugin_runtime";
     model: string;
     stream: boolean;
     allowInsecureTls: boolean;
@@ -153,6 +158,7 @@ function normalizeAccountConfigInput(raw: RawAccountConfig): RawAccountConfig {
             ...gateway,
             baseUrl: asString(gateway.baseUrl) ?? asString(raw.gatewayBaseUrl),
             token: asString(gateway.token) ?? asString(raw.gatewayToken),
+            transport: asString(gateway.transport) ?? asString(raw.gatewayTransport),
             model: asString(gateway.model) ?? asString(raw.gatewayModel),
             stream: asBoolean(gateway.stream) ?? asBoolean(raw.gatewayStream),
             allowInsecureTls:
@@ -225,6 +231,7 @@ export const pluginConfigSchema = {
                     inboundSigningSecret: { type: "string" },
                     gatewayBaseUrl: { type: "string" },
                     gatewayToken: { type: "string" },
+                    gatewayTransport: { type: "string" },
                     gatewayModel: { type: "string" },
                 },
             },
@@ -266,6 +273,10 @@ export const channelAccountConfigSchema = {
         gatewayModel: {
             type: "string",
             description: "选填：调用 Gateway 时使用的模型名，默认 openclaw",
+        },
+        gatewayTransport: {
+            type: "string",
+            description: "选填：Gateway 传输层，默认 auto；可显式指定 chat_completions / plugin_runtime",
         },
     },
 } as const;
@@ -339,6 +350,13 @@ export function resolveGatewayRuntimeConfig(acct: AccountConfig): GatewayRuntime
     return {
         baseUrl: acct.gateway.baseUrl ?? process.env.OPENCLAW_GATEWAY_HTTP_URL ?? "http://127.0.0.1:18789",
         token: acct.gateway.token ?? process.env.OPENCLAW_GATEWAY_TOKEN,
+        transport:
+            acct.gateway.transport ??
+            (process.env.OPENCLAW_GATEWAY_TRANSPORT === "auto"
+                ? "auto"
+                : process.env.OPENCLAW_GATEWAY_TRANSPORT === "plugin_runtime"
+                    ? "plugin_runtime"
+                  : "auto"),
         model: acct.gateway.model ?? process.env.OPENCLAW_GATEWAY_MODEL ?? "openclaw",
         stream: acct.gateway.stream ?? process.env.OPENCLAW_GATEWAY_STREAM !== "0",
         allowInsecureTls:

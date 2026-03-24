@@ -53,31 +53,30 @@
             v-for="item in filteredRecentConversations"
             :key="item.id"
             class="sidebar__item"
-            :class="{ 'sidebar__item--active': currentConversationId === item.id }"
+            :class="{
+              'sidebar__item--active': currentConversationId === item.id,
+              'sidebar__item--group': item.type === 'group',
+              'sidebar__item--direct': item.type === 'direct',
+            }"
             type="button"
             @click="openConversation(item.id)"
           >
-            <div
-              class="sidebar__avatar"
-              :class="{ 'sidebar__avatar--group': item.type === 'group' }"
-            >
-              {{ item.type === "group" ? "群" : avatarText(conversationDisplayName(item)) }}
-            </div>
             <div class="sidebar__item-body">
-              <div class="sidebar__row">
-                <div class="sidebar__item-title sidebar__item-title--recent">
-                  {{ conversationDisplayName(item) }}
-                </div>
-                <div class="sidebar__meta">
-                  <span class="sidebar__conversation-kind" :class="{ 'sidebar__conversation-kind--group': item.type === 'group' }">
-                    {{ item.type === "group" ? "群组" : "单聊" }}
-                  </span>
-                  <span class="sidebar__item-time">
-                    {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
-                  </span>
-                </div>
+              <div
+                class="sidebar__item-title sidebar__item-title--recent"
+                :title="conversationDisplayName(item)"
+              >
+                {{ conversationDisplayName(item) }}
               </div>
               <div class="sidebar__item-preview">{{ item.last_message_preview ?? "暂无消息" }}</div>
+              <div class="sidebar__meta sidebar__meta--recent">
+                <span class="sidebar__conversation-kind" :class="{ 'sidebar__conversation-kind--group': item.type === 'group' }">
+                  {{ item.type === "group" ? "群组" : "单聊" }}
+                </span>
+                <span class="sidebar__item-time">
+                  {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
+                </span>
+              </div>
             </div>
           </button>
         </template>
@@ -91,10 +90,9 @@
             type="button"
             @click="openDirect(item.instanceId, item.agentId)"
           >
-            <div class="sidebar__avatar sidebar__avatar--accent">{{ avatarText(item.displayName) }}</div>
             <div class="sidebar__item-body">
               <div class="sidebar__row">
-                <div class="sidebar__item-title">{{ item.displayName }}</div>
+                <div class="sidebar__item-title" :title="item.displayName">{{ item.displayName }}</div>
                 <span class="sidebar__badge" :class="{ 'sidebar__badge--muted': !item.enabled }">
                   {{ item.enabled ? "启用" : "禁用" }}
                 </span>
@@ -113,10 +111,9 @@
             type="button"
             @click="openGroup(group.id)"
           >
-            <div class="sidebar__avatar sidebar__avatar--group">{{ avatarText(group.name) }}</div>
             <div class="sidebar__item-body">
               <div class="sidebar__row">
-                <div class="sidebar__item-title">{{ group.name }}</div>
+                <div class="sidebar__item-title" :title="group.name">{{ group.name }}</div>
                 <button class="sidebar__ghost-button" type="button" @click.stop="manageGroup(group.id)">
                   管理
                 </button>
@@ -457,9 +454,9 @@ function formatRelativeTime(value: string) {
 .sidebar__item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 10px;
+  padding: 9px 10px;
   border: none;
   border-radius: 14px;
   background: transparent;
@@ -477,30 +474,6 @@ function formatRelativeTime(value: string) {
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
 }
 
-.sidebar__avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #f1d7d7, #f8efef);
-  color: #734646;
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.sidebar__avatar--accent {
-  background: linear-gradient(135deg, #e9efff, #f3f6ff);
-  color: #4f5f97;
-}
-
-.sidebar__avatar--group {
-  background: linear-gradient(135deg, #f5e6e6, #fcf3f3);
-  color: #985b5b;
-}
-
 .sidebar__item-body {
   display: grid;
   gap: 4px;
@@ -516,9 +489,10 @@ function formatRelativeTime(value: string) {
 }
 
 .sidebar__meta {
-  display: grid;
-  justify-items: end;
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .sidebar__item-title {
@@ -531,11 +505,7 @@ function formatRelativeTime(value: string) {
 }
 
 .sidebar__item-title--recent {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .sidebar__item-preview {
@@ -549,23 +519,25 @@ function formatRelativeTime(value: string) {
 .sidebar__item-time {
   flex: 0 0 auto;
   color: #9ca1aa;
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   line-height: 1.3;
   white-space: nowrap;
 }
 
 .sidebar__conversation-kind {
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #eef1f4;
-  color: #7b818a;
-  font-size: 0.68rem;
+  color: #5a6f96;
+  font-size: 0.66rem;
   line-height: 1.5;
+  font-weight: 700;
 }
 
 .sidebar__conversation-kind--group {
-  background: #f8e8e8;
   color: #9a5757;
+}
+
+.sidebar__meta--recent .sidebar__conversation-kind,
+.sidebar__meta--recent .sidebar__item-time {
+  flex: 0 0 auto;
 }
 
 .sidebar__badge {

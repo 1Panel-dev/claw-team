@@ -37,6 +37,7 @@ describe("resolveGatewayRuntimeConfig", () => {
             baseUrl: "https://account.example.com",
             token: "account-token",
             model: "openclaw",
+            transport: "auto",
             stream: true,
             allowInsecureTls: true,
         });
@@ -59,8 +60,51 @@ describe("resolveGatewayRuntimeConfig", () => {
             baseUrl: "https://env.example.com",
             token: "env-token",
             model: "env-model",
+            transport: "auto",
             stream: false,
             allowInsecureTls: true,
+        });
+    });
+
+    it("supports explicit plugin_runtime transport selection", () => {
+        const account = AccountConfigSchema.parse({
+            baseUrl: "https://claw-team.example.com",
+            outboundToken: "outbound-token",
+            inboundSigningSecret: "1234567890123456",
+            gateway: {
+                baseUrl: "https://gateway.example.com",
+                transport: "plugin_runtime",
+            },
+        });
+
+        expect(resolveGatewayRuntimeConfig(account)).toEqual({
+            baseUrl: "https://gateway.example.com",
+            token: undefined,
+            model: "openclaw",
+            transport: "plugin_runtime",
+            stream: true,
+            allowInsecureTls: false,
+        });
+    });
+
+    it("supports explicit auto transport selection", () => {
+        const account = AccountConfigSchema.parse({
+            baseUrl: "https://claw-team.example.com",
+            outboundToken: "outbound-token",
+            inboundSigningSecret: "1234567890123456",
+            gateway: {
+                baseUrl: "https://gateway.example.com",
+                transport: "auto",
+            },
+        });
+
+        expect(resolveGatewayRuntimeConfig(account)).toEqual({
+            baseUrl: "https://gateway.example.com",
+            token: undefined,
+            model: "openclaw",
+            transport: "auto",
+            stream: true,
+            allowInsecureTls: false,
         });
     });
 });

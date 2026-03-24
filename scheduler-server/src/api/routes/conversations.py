@@ -314,8 +314,9 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
     agents = {agent.id: agent for agent in db.scalars(select(AgentProfile).where(AgentProfile.id.in_([m.agent_id for m in members])))}
     by_instance: dict[int, list[AgentProfile]] = {}
 
-    # 如果有 mentions，只保留被 @ 到的 agent；
-    # 否则默认取当前群成员的全部 agent，形成广播。
+    # 如果有 mentions，只保留被 @ 到的 agent。
+    # 新前端优先传 "instance_id:agent_id" 这种唯一值；
+    # 同时继续兼容旧版本基于 agent_key / display_name 的宽松匹配。
     if mentions:
         wanted = {token.strip().lower() for token in mentions if token.strip()}
         filtered = []
@@ -323,7 +324,11 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
             agent = agents.get(member.agent_id)
             if not agent:
                 continue
-            tokens = {agent.agent_key.lower(), agent.display_name.lower()}
+            tokens = {
+                agent.agent_key.lower(),
+                agent.display_name.lower(),
+                f"{member.instance_id}:{member.agent_id}",
+            }
             if tokens & wanted:
                 filtered.append((member.instance_id, agent))
     else:

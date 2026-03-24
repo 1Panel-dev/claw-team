@@ -24,6 +24,29 @@ import { createClawTeamRoutes } from "./http/routes.js";
 import { HttpClawTeamCallbackClient } from "./callback/client.js";
 import { createOpenClawRuntimeAdapter } from "./openclaw/adapters.js";
 
+function describeRuntimeShape(runtime: unknown) {
+    if (!runtime || typeof runtime !== "object") {
+        return { kind: typeof runtime };
+    }
+
+    const record = runtime as Record<string, unknown>;
+    const topLevelKeys = Object.keys(record).sort();
+    const interesting: Record<string, string[]> = {};
+
+    for (const key of ["gateway", "agent", "channels", "message", "session", "events"]) {
+        const value = record[key];
+        if (value && typeof value === "object") {
+            interesting[key] = Object.keys(value as Record<string, unknown>).sort();
+        }
+    }
+
+    return {
+        kind: "object",
+        topLevelKeys,
+        interesting,
+    };
+}
+
 // 这台 OpenClaw 宿主导出的插件入口形状和 defineChannelPluginEntry 不一致，
 // 所以这里直接导出一个和宿主内置 1panel 插件同形状的对象。
 const plugin = {
@@ -35,6 +58,8 @@ const plugin = {
         // 尽量复用宿主 logger，这样插件日志能和 Gateway 日志汇总到一起。
         const sink = wrapOpenClawLogger(api.logger);
         const logger = createLogger({ sink });
+
+        logger.info(describeRuntimeShape(api.runtime), "Plugin runtime shape detected");
 
         // runtime adapter 是和 OpenClaw 宿主交互的唯一隔离层。
         const openclaw = createOpenClawRuntimeAdapter(api);

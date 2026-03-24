@@ -22,6 +22,7 @@ const gateway = resolveGatewayRuntimeConfig(
         gateway: {
             baseUrl: "https://gateway.example.com",
             token: "gateway-token",
+            transport: "chat_completions",
             model: "openclaw",
             stream: true,
             allowInsecureTls: false,
@@ -125,6 +126,142 @@ describe("createOpenClawRuntimeAdapter", () => {
         }
 
         expect(chunks).toEqual(["single response"]);
+    });
+
+    it("fails with a stable error when plugin_runtime transport is selected but the host plugin runtime is unavailable", async () => {
+        const adapter = createOpenClawRuntimeAdapter({});
+
+        await expect(async () => {
+            for await (const _chunk of adapter.runAgentTextTurn({
+                agentId: "pm",
+                channelId: "claw-team",
+                accountId: "default",
+                sessionKey: "agent:pm:pm",
+                peer: { kind: "direct", id: "c2" },
+                from: { userId: "u2" },
+                text: "status?",
+                gateway: {
+                    ...gateway,
+                    transport: "plugin_runtime",
+                },
+            })) {
+                // no-op
+            }
+        }).rejects.toThrow("openclaw_plugin_runtime_unavailable");
+    });
+
+    it("uses chat_completions in auto mode when host config enables gateway.http.endpoints.chatCompletions.enabled", async () => {
+        const adapter = createOpenClawRuntimeAdapter({
+            runtime: {
+                config: {
+                    loadConfig: () => ({
+                        gateway: {
+                            http: {
+                                endpoints: {
+                                    chatCompletions: {
+                                        enabled: true,
+                                    },
+                                },
+                            },
+                        },
+                    }),
+                },
+            },
+        });
+        const originalFetch = globalThis.fetch;
+
+        globalThis.fetch = (async () =>
+            new Response(
+                JSON.stringify({
+                    choices: [{ message: { content: "auto http" } }],
+                }),
+                {
+                    status: 200,
+                    headers: { "content-type": "application/json" },
+                },
+            )) as typeof fetch;
+
+        const chunks: string[] = [];
+        try {
+            for await (const chunk of adapter.runAgentTextTurn({
+                agentId: "pm",
+                channelId: "claw-team",
+                accountId: "default",
+                sessionKey: "agent:pm:pm",
+                peer: { kind: "direct", id: "c2" },
+                from: { userId: "u2" },
+                text: "status?",
+                gateway: {
+                    ...gateway,
+                    transport: "auto",
+                },
+            })) {
+                chunks.push(chunk.text);
+            }
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+
+        expect(chunks).toEqual(["auto http"]);
+    });
+
+    it("uses plugin_runtime in auto mode when host config does not enable chatCompletions", async () => {
+        const dispatchReplyWithBufferedBlockDispatcher = async (params: {
+            dispatcherOptions: {
+                deliver: (payload: { text?: string }) => Promise<void>;
+            };
+        }) => {
+            await params.dispatcherOptions.deliver({ text: "auto runtime" });
+            return { queuedFinal: true };
+        };
+
+        const adapter = createOpenClawRuntimeAdapter({
+            runtime: {
+                config: {
+                    loadConfig: () => ({
+                        gateway: {
+                            http: {
+                                endpoints: {
+                                    chatCompletions: {
+                                        enabled: false,
+                                    },
+                                },
+                            },
+                        },
+                        session: { store: "~/.openclaw/agents/{agentId}/sessions/sessions.json" },
+                    }),
+                },
+                channel: {
+                    reply: {
+                        finalizeInboundContext: (ctx: unknown) => ctx,
+                        dispatchReplyWithBufferedBlockDispatcher,
+                    },
+                    session: {
+                        resolveStorePath: () => "/tmp/pm-sessions.json",
+                        recordInboundSession: async () => undefined,
+                    },
+                },
+            },
+        });
+
+        const chunks: string[] = [];
+        for await (const chunk of adapter.runAgentTextTurn({
+            agentId: "pm",
+            channelId: "claw-team",
+            accountId: "default",
+            sessionKey: "agent:pm:pm",
+            peer: { kind: "direct", id: "c2" },
+            from: { userId: "u2" },
+            text: "status?",
+            gateway: {
+                ...gateway,
+                transport: "auto",
+            },
+        })) {
+            chunks.push(chunk.text);
+        }
+
+        expect(chunks).toEqual(["auto runtime", "auto runtime"]);
     });
 
     it("does not duplicate reply.final text when an SSE adapter emits an aggregated final chunk", async () => {

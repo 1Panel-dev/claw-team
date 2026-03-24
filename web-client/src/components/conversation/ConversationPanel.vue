@@ -65,7 +65,7 @@ const title = computed(() => {
 const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
 const mentionOptions = computed(() =>
     (groupStore.currentGroupDetail?.members ?? []).map((member) => ({
-        value: member.agent_key,
+        value: `${member.instance_id}:${member.agent_id}`,
         label: `${member.display_name} / ${member.instance_name}`,
     })),
 );
