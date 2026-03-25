@@ -88,6 +88,9 @@ class MessageRead(TimestampedModel):
     conversation_id: int
     sender_type: str
     sender_label: str
+    # 这里先用消息 id 前缀推导来源，避免为了展示来源再做一轮数据库迁移。
+    # 当前只有 Web UI 镜像消息需要来源标记；普通消息保持 None 即可。
+    source: str | None = None
     content: str
     status: str
     parts: list[MessagePartRead]
@@ -171,6 +174,7 @@ def build_message_read(message) -> MessageRead:
         conversation_id=message.conversation_id,
         sender_type=message.sender_type,
         sender_label=message.sender_label,
+        source=_detect_message_source(message.id),
         content=message.content,
         status=message.status,
         created_at=message.created_at,
@@ -183,3 +187,9 @@ def _normalize_tool_status(value: str) -> str:
     if value in {"pending", "running", "completed", "failed"}:
         return value
     return "pending"
+
+
+def _detect_message_source(message_id: str) -> str | None:
+    if message_id.startswith("msg_web_"):
+        return "webchat"
+    return None

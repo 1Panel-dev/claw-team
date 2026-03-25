@@ -38,6 +38,7 @@ export interface MessageReadApi {
     conversation_id: number;
     sender_type: string;
     sender_label: string;
+    source?: "webchat" | null;
     content: string;
     status: string;
     created_at: string;

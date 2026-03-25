@@ -238,6 +238,15 @@ onMounted(async () => {
 });
 
 async function openDirect(instanceId: number, agentId: number) {
+    const currentConversation = conversationStore.currentConversation;
+    if (
+        currentConversation
+        && currentConversation.type === "direct"
+        && currentConversation.direct_instance_id === instanceId
+        && currentConversation.direct_agent_id === agentId
+    ) {
+        return;
+    }
     await conversationStore.openDirectConversation(instanceId, agentId);
     if (conversationStore.currentConversationId) {
         await router.push(`/messages/conversation/${conversationStore.currentConversationId}`);
@@ -245,6 +254,14 @@ async function openDirect(instanceId: number, agentId: number) {
 }
 
 async function openGroup(groupId: number) {
+    const currentConversation = conversationStore.currentConversation;
+    if (
+        currentConversation
+        && currentConversation.type === "group"
+        && currentConversation.group_id === groupId
+    ) {
+        return;
+    }
     await conversationStore.openGroupConversation(groupId);
     if (conversationStore.currentConversationId) {
         await router.push(`/messages/conversation/${conversationStore.currentConversationId}`);
@@ -252,6 +269,9 @@ async function openGroup(groupId: number) {
 }
 
 async function openConversation(conversationId: number) {
+    if (conversationStore.currentConversationId === conversationId) {
+        return;
+    }
     await conversationStore.openConversation(conversationId);
     await router.push(`/messages/conversation/${conversationId}`);
 }

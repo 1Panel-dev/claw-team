@@ -11,7 +11,7 @@
   "openclaw": {
     "extensions": ["./dist/index.js"]
   },
-  "files": ["dist", "skills", "openclaw.plugin.json", "README.md"],
+  "files": ["dist", "skills", "hooks", "openclaw.plugin.json", "README.md"],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

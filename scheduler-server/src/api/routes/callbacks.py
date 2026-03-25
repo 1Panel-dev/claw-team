@@ -13,16 +13,19 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
 from src.core.security import verify_callback_signature
 from src.models.agent_profile import AgentProfile
+from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
@@ -30,6 +33,28 @@ from src.models.openclaw_instance import OpenClawInstance
 from src.services.conversation_events import conversation_event_hub
 
 router = APIRouter(prefix="/api/v1/claw-team", tags=["callbacks"])
+
+CHANNEL_ID = "claw-team"
+WEBCHAT_CHANNEL_ID = "webchat"
+AGENT_SESSION_PREFIX = "agent:"
+WEBCHAT_MIRROR_EVENT_SOURCE = "webchat_mirror"
+
+
+class WebchatMirrorCreate(BaseModel):
+    """
+    这是 OpenClaw Web UI 对话镜像到调度中心时使用的最小 payload。
+
+    这里接收 OpenClaw Web UI transcript 里追加的消息：
+    1. channelId 必须是 webchat
+    2. sessionKey 必须能解析出 agent:<agentId>:...
+    3. messageId 用于幂等，避免同一条 provider 消息重复镜像
+    """
+
+    channelId: str = Field(min_length=1)
+    sessionKey: str = Field(min_length=1)
+    messageId: str = Field(min_length=1)
+    senderType: str = Field(min_length=1)
+    content: str = Field(min_length=1)
 
 
 @router.post("/events")
@@ -163,6 +188,102 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
     return {"ok": True}
 
 
+@router.post("/webchat-mirror")
+async def mirror_webchat_message(
+    payload: WebchatMirrorCreate,
+    request: Request,
+    db: Session = Depends(db_session),
+) -> dict[str, Any]:
+    """
+    把 OpenClaw Web UI 里直接产生的消息追加镜像到调度中心。
+
+    设计原则：
+    1. 只追加，不覆盖现有消息。
+    2. 只接受 webchat，避免把别的渠道混进来。
+    3. 用 provider messageId 生成稳定消息 id，保证幂等。
+    """
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+
+    token = auth_header.removeprefix("Bearer ").strip()
+    instance = db.scalar(select(OpenClawInstance).where(OpenClawInstance.callback_token == token))
+    if not instance:
+        raise HTTPException(status_code=401, detail="unknown callback token")
+
+    if payload.channelId.strip() != WEBCHAT_CHANNEL_ID:
+        raise HTTPException(status_code=400, detail="only webchat mirror is supported")
+
+    agent_key = _parse_agent_key_from_session_key(payload.sessionKey)
+    if not agent_key:
+        raise HTTPException(status_code=400, detail="invalid webchat session key")
+
+    agent = db.scalar(
+        select(AgentProfile).where(
+            AgentProfile.instance_id == instance.id,
+            AgentProfile.agent_key == agent_key,
+        )
+    )
+    if not agent:
+        raise HTTPException(status_code=404, detail="mirror agent not found")
+
+    conversation = db.scalar(
+        select(Conversation).where(
+            Conversation.type == "direct",
+            Conversation.direct_instance_id == instance.id,
+            Conversation.direct_agent_id == agent.id,
+        )
+    )
+    if conversation is None:
+        conversation = Conversation(
+            type="direct",
+            title=f"{instance.name} / {agent.display_name}",
+            direct_instance_id=instance.id,
+            direct_agent_id=agent.id,
+        )
+        db.add(conversation)
+        db.flush()
+
+    sender_type = _normalize_mirror_sender_type(payload.senderType)
+    sender_label = agent.display_name if sender_type == "agent" else "User"
+
+    mirrored_message_id = _build_webchat_mirror_message_id(
+        instance_id=instance.id,
+        agent_key=agent.agent_key,
+        session_key=payload.sessionKey,
+        provider_message_id=payload.messageId,
+        sender_type=sender_type,
+    )
+    mirrored_message = db.get(Message, mirrored_message_id)
+    if mirrored_message is None:
+        db.add(
+            Message(
+                id=mirrored_message_id,
+                conversation_id=conversation.id,
+                sender_type=sender_type,
+                sender_label=sender_label,
+                content=payload.content.strip(),
+                status="completed",
+            )
+        )
+        db.commit()
+        await conversation_event_hub.publish_update(
+            conversation.id,
+            {
+                "source": WEBCHAT_MIRROR_EVENT_SOURCE,
+                "messageId": mirrored_message_id,
+            },
+        )
+    else:
+        db.commit()
+
+    return {
+        "ok": True,
+        "conversationId": conversation.id,
+        "messageId": mirrored_message_id,
+    }
+
+
 def _map_dispatch_status(event_type: str | None) -> str:
     # 这里把 channel 事件类型收敛成 scheduler-server 自己更稳定的状态枚举。
     mapping = {
@@ -172,6 +293,37 @@ def _map_dispatch_status(event_type: str | None) -> str:
         "run.error": "failed",
     }
     return mapping.get(event_type or "", "pending")
+
+
+def _parse_agent_key_from_session_key(session_key: str) -> str | None:
+    """
+    目前只支持 agent:<agentId>:... 这种 OpenClaw 原生单聊 session key。
+    """
+    raw = session_key.strip()
+    if not raw.startswith(AGENT_SESSION_PREFIX):
+        return None
+    parts = raw.split(":")
+    if len(parts) < 3:
+        return None
+    agent_key = parts[1].strip()
+    return agent_key or None
+
+
+def _build_webchat_mirror_message_id(
+    *,
+    instance_id: int,
+    agent_key: str,
+    session_key: str,
+    provider_message_id: str,
+    sender_type: str,
+) -> str:
+    """
+    用 provider messageId 生成稳定消息 id，保证重复镜像时仍然只落一条消息。
+    """
+    digest = hashlib.sha1(
+        f"{instance_id}|{agent_key}|{session_key}|{provider_message_id}|{sender_type}".encode("utf-8")
+    ).hexdigest()
+    return f"msg_web_{digest}"
 
 
 def _pick_higher_status(current_status: str | None, next_status: str | None) -> str:
@@ -241,3 +393,10 @@ def _normalize_tool_status(value: str) -> str:
     if value in {"pending", "running", "completed", "failed"}:
         return value
     return "pending"
+
+
+def _normalize_mirror_sender_type(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized in {"agent", "assistant"}:
+        return "agent"
+    return "user"

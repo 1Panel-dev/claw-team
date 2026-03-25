@@ -37,6 +37,7 @@ export const zhCN = {
         replying: "正在思考或执行中...",
         copy: "复制",
         copied: "已复制",
+        sourceWebchat: "OpenClaw Web UI",
         selectConversation: "请选择一个会话",
         mentionsLabel: "定向 @Agent",
         mentionsPlaceholder: "不选择则默认广播给群成员",

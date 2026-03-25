@@ -23,6 +23,7 @@ import { InMemoryMessageStateStore } from "./store/messageState.js";
 import { createClawTeamRoutes } from "./http/routes.js";
 import { HttpClawTeamCallbackClient } from "./callback/client.js";
 import { createOpenClawRuntimeAdapter } from "./openclaw/adapters.js";
+import { registerWebchatTranscriptMirror } from "./openclaw/webchatMirror.js";
 
 function describeRuntimeShape(runtime: unknown) {
     if (!runtime || typeof runtime !== "object") {
@@ -71,6 +72,10 @@ const plugin = {
             logger,
         });
         const messageState = new InMemoryMessageStateStore();
+
+        // 这里把 OpenClaw Web UI 里直接产生的 assistant 回复追加镜像到调度中心。
+        // 它只监听 transcript 更新，不会接管或覆盖 Claw Team 现有消息。
+        registerWebchatTranscriptMirror(api, logger);
 
         const clawTeamFactory = (acct: any) =>
             new HttpClawTeamCallbackClient({

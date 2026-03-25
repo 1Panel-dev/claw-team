@@ -15,8 +15,17 @@
       }"
     >
       <div class="message-list__meta">
-        <span class="message-list__sender">{{ message.senderLabel }}</span>
+        <div class="message-list__meta-main">
+          <span class="message-list__sender">{{ message.senderLabel }}</span>
+          <span
+            v-if="message.source === 'webchat'"
+            class="message-list__source-badge"
+          >
+            {{ t("conversation.sourceWebchat") }}
+          </span>
+        </div>
         <div class="message-list__meta-side">
+          <span>{{ formatDateTime(message.updatedAt) }}</span>
           <ElButton
             class="message-list__copy-button"
             text
@@ -28,7 +37,6 @@
               <CopyDocument />
             </el-icon>
           </ElButton>
-          <span>{{ formatDateTime(message.updatedAt) }}</span>
         </div>
       </div>
       <div class="message-list__parts">
@@ -243,8 +251,27 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
 }
 
+.message-list__meta-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .message-list__sender {
   font-weight: 600;
+}
+
+.message-list__source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: #5f6f95;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: nowrap;
 }
 
 .message-list__meta-side {

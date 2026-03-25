@@ -323,6 +323,197 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(message["parts"][1]["status"], "completed")
         self.assertEqual(message["parts"][1]["summary"], "共检查 12 项，全部正常")
 
+    def test_webchat_mirror_appends_agent_message_to_existing_direct_conversation(self) -> None:
+        """
+        OpenClaw Web UI 里的 agent 回复，应能追加镜像到现有 direct conversation。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw A / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            db.add(
+                Message(
+                    id="msg_existing_001",
+                    conversation_id=conversation.id,
+                    sender_type="user",
+                    sender_label="User",
+                    content="旧消息",
+                    status="completed",
+                )
+            )
+            db.commit()
+            conversation_id = conversation.id
+
+        response = self.client.post(
+            "/api/v1/claw-team/webchat-mirror",
+            headers={"Authorization": "Bearer callback-token-123"},
+            json={
+                "channelId": "webchat",
+                "sessionKey": "agent:main:main",
+                "messageId": "webchat-msg-001",
+                "senderType": "assistant",
+                "content": "这是从 OpenClaw Web UI 镜像过来的回复",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["ok"], True)
+        self.assertEqual(payload["conversationId"], conversation_id)
+        self.assertTrue(payload["messageId"].startswith("msg_web_"))
+
+        messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(messages_response.status_code, 200)
+        messages_payload = messages_response.json()
+        self.assertEqual(messages_payload["messages"][0]["id"], "msg_existing_001")
+        self.assertEqual(messages_payload["messages"][1]["id"], payload["messageId"])
+        self.assertEqual(messages_payload["messages"][1]["sender_type"], "agent")
+        self.assertEqual(messages_payload["messages"][1]["sender_label"], "Main Agent")
+        self.assertEqual(messages_payload["messages"][1]["source"], "webchat")
+        self.assertEqual(messages_payload["messages"][1]["content"], "这是从 OpenClaw Web UI 镜像过来的回复")
+
+    def test_webchat_mirror_is_idempotent_for_same_provider_message(self) -> None:
+        """
+        同一个 WebChat provider message 重复投递时，不应重复生成镜像消息。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw A / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+
+        request_payload = {
+            "channelId": "webchat",
+            "sessionKey": "agent:main:main",
+            "messageId": "webchat-msg-002",
+            "senderType": "assistant",
+            "content": "重复事件也只应保留一条消息",
+        }
+        headers = {"Authorization": "Bearer callback-token-123"}
+
+        first = self.client.post("/api/v1/claw-team/webchat-mirror", headers=headers, json=request_payload)
+        second = self.client.post("/api/v1/claw-team/webchat-mirror", headers=headers, json=request_payload)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+
+        messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(messages_response.status_code, 200)
+        messages_payload = messages_response.json()
+        mirrored = [item for item in messages_payload["messages"] if item["sender_type"] == "agent"]
+        self.assertEqual(len(mirrored), 1)
+        self.assertTrue(mirrored[0]["id"].startswith("msg_web_"))
+        self.assertEqual(mirrored[0]["content"], "重复事件也只应保留一条消息")
+
+    def test_webchat_mirror_persists_user_message_into_existing_direct_conversation(self) -> None:
+        """
+        Web UI 中用户自己发出的消息，也应该追加进同一条 direct conversation。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw A / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+
+        response = self.client.post(
+            "/api/v1/claw-team/webchat-mirror",
+            headers={"Authorization": "Bearer callback-token-123"},
+            json={
+                "channelId": "webchat",
+                "sessionKey": "agent:main:main",
+                "messageId": "webchat-msg-user-001",
+                "senderType": "user",
+                "content": "大兴天气",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(messages_response.status_code, 200)
+        messages_payload = messages_response.json()
+        mirrored = messages_payload["messages"][0]
+        self.assertEqual(mirrored["sender_type"], "user")
+        self.assertEqual(mirrored["sender_label"], "User")
+        self.assertEqual(mirrored["source"], "webchat")
+        self.assertEqual(mirrored["content"], "大兴天气")
+
     def test_callback_is_idempotent_for_duplicate_reply_final(self) -> None:
         """
         同一个 reply.final 重复投递时，不应重复生成 agent 消息，也不应重复写 callback event。

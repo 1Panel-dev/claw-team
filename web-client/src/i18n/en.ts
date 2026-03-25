@@ -37,6 +37,7 @@ export const en = {
         replying: "Thinking or executing...",
         copy: "Copy",
         copied: "Copied",
+        sourceWebchat: "OpenClaw Web UI",
         selectConversation: "Choose a conversation",
         mentionsLabel: "Mention @Agent",
         mentionsPlaceholder: "Leave empty to broadcast to group members",

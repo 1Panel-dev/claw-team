@@ -34,6 +34,7 @@ export interface MessageView {
     id: string;
     senderType: string;
     senderLabel: string;
+    source: "webchat" | null;
     status: string;
     createdAt: string;
     updatedAt: string;
@@ -47,6 +48,7 @@ export function toMessageView(message: MessageReadApi): MessageView {
         id: message.id,
         senderType: message.sender_type,
         senderLabel: message.sender_label,
+        source: message.source ?? null,
         status: message.status,
         createdAt: message.created_at,
         updatedAt: message.updated_at,
