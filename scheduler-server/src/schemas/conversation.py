@@ -31,6 +31,7 @@ class ConversationRead(TimestampedModel):
     group_id: int | None
     direct_instance_id: int | None
     direct_agent_id: int | None
+    agent_dialogue_id: int | None = None
 
 
 class ConversationListItem(TimestampedModel):
@@ -46,6 +47,12 @@ class ConversationListItem(TimestampedModel):
     group_name: str | None
     instance_name: str | None
     agent_display_name: str | None
+    dialogue_source_agent_name: str | None = None
+    dialogue_target_agent_name: str | None = None
+    dialogue_status: str | None = None
+    dialogue_window_seconds: int | None = None
+    dialogue_soft_message_limit: int | None = None
+    dialogue_hard_message_limit: int | None = None
     last_message_id: str | None
     last_message_preview: str | None
     last_message_sender_type: str | None

@@ -18,6 +18,7 @@ from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
 from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate
 from src.schemas.common import validate_orm
+from src.services.agent_ct_id import ensure_agent_ct_id
 
 router = APIRouter(prefix="/api", tags=["agents"])
 
@@ -84,6 +85,8 @@ def upsert_instance_agent(
             agent.created_via_claw_team = created_via_claw_team
 
     db.flush()
+    ensure_agent_ct_id(agent)
+    db.flush()
     return agent
 
 
@@ -115,9 +118,19 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
 
 @router.get("/instances/{instance_id}/agents", response_model=list[AgentRead])
 def list_agents(instance_id: int, db: Session = Depends(db_session)) -> list[AgentProfile]:
-    return list(
+    agents = list(
         db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance_id).order_by(AgentProfile.id))
     )
+    touched = False
+    for agent in agents:
+        if not (agent.ct_id or "").strip():
+            ensure_agent_ct_id(agent)
+            touched = True
+    if touched:
+        db.commit()
+        for agent in agents:
+            db.refresh(agent)
+    return agents
 
 
 @router.post("/instances/{instance_id}/agents", response_model=AgentRead)
@@ -183,6 +196,10 @@ async def get_agent_profile(agent_id: int, db: Session = Depends(db_session)) ->
         raise HTTPException(status_code=404, detail="agent not found")
     if not can_edit_agent_profile(agent):
         raise HTTPException(status_code=403, detail="agent profile is read-only")
+    if not (agent.ct_id or "").strip():
+        ensure_agent_ct_id(agent)
+        db.commit()
+        db.refresh(agent)
 
     instance = db.get(OpenClawInstance, agent.instance_id)
     if not instance:
@@ -249,6 +266,8 @@ async def update_agent(agent_id: int, payload: AgentUpdate, db: Session = Depend
         if key in {"identity_md", "soul_md", "user_md", "memory_md"}:
             continue
         setattr(agent, key, value)
+    if not (agent.ct_id or "").strip():
+        ensure_agent_ct_id(agent)
     db.commit()
     db.refresh(agent)
     return agent

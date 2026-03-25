@@ -70,7 +70,7 @@
                 <div>
                   <div class="agent-row__title">{{ agent.display_name }}</div>
                   <div class="agent-row__meta">
-                    {{ agent.agent_key }}<span v-if="agent.role_name"> / {{ agent.role_name }}</span>
+                    {{ agent.agent_key }} · {{ agent.ct_id }}<span v-if="agent.role_name"> / {{ agent.role_name }}</span>
                   </div>
                 </div>
                 <div class="instance-card__actions">

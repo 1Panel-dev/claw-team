@@ -3,6 +3,14 @@
     <header class="panel__header">
       <div class="panel__header-main">
         <h1 class="panel__title">{{ title }}</h1>
+        <AgentDialogueToolbar
+          v-if="currentAgentDialogue"
+          :dialogue="currentAgentDialogue"
+          :messages="messages"
+          @pause="pauseDialogue"
+          @resume="resumeDialogue"
+          @stop="stopDialogue"
+        />
       </div>
     </header>
 
@@ -12,10 +20,12 @@
       :messages="messages"
       :loading="loading"
       :show-typing-indicator="showTypingIndicator"
+      :sender-meta-map="senderMetaMap"
     />
     <MessageComposer
       :sending="sending"
       :is-group="isGroupConversation"
+      :is-agent-dialogue="isAgentDialogueConversation"
       :mention-options="mentionOptions"
       @send="handleSend"
     />
@@ -31,6 +41,7 @@
  */
 import { computed } from "vue";
 
+import AgentDialogueToolbar from "@/components/conversation/AgentDialogueToolbar.vue";
 import MessageComposer from "@/components/conversation/MessageComposer.vue";
 import MessageList from "@/components/conversation/MessageList.vue";
 import { useI18n } from "@/composables/useI18n";
@@ -49,6 +60,7 @@ const addressBookStore = useAddressBookStore();
 const { t } = useI18n();
 
 const messages = computed(() => conversationStore.messages);
+const currentAgentDialogue = computed(() => conversationStore.currentAgentDialogue);
 const dispatches = computed(() => conversationStore.dispatches);
 const sending = computed(() => conversationStore.sending);
 const title = computed(() => {
@@ -66,6 +78,7 @@ const title = computed(() => {
     return conversation.title ?? t("conversation.selectConversation");
 });
 const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
+const isAgentDialogueConversation = computed(() => conversationStore.currentConversation?.type === "agent_dialogue");
 const mentionOptions = computed(() =>
     (groupStore.currentGroupDetail?.members ?? []).map((member) => ({
         value: `${member.instance_id}:${member.agent_id}`,
@@ -75,13 +88,65 @@ const mentionOptions = computed(() =>
 const showTypingIndicator = computed(() =>
     dispatches.value.some((item) => item.status === "accepted" || item.status === "streaming"),
 );
+const senderMetaMap = computed<Record<string, { roleName?: string | null }>>(() => {
+    const map: Record<string, { roleName?: string | null }> = {};
+
+    // 优先使用当前群详情，避免群成员展示时漏掉角色名。
+    for (const member of groupStore.currentGroupDetail?.members ?? []) {
+        const label = member.display_name.trim();
+        if (!label) {
+            continue;
+        }
+        map[label] = { roleName: member.role_name };
+    }
+
+    // 再补一层通讯录里的实例 Agent，覆盖单聊和双 Agent 对话。
+    for (const instance of addressBookStore.instances) {
+        for (const agent of instance.agents) {
+            const label = agent.display_name.trim();
+            if (!label) {
+                continue;
+            }
+            if (!map[label]) {
+                map[label] = { roleName: agent.role_name };
+            }
+        }
+    }
+
+    return map;
+});
 
 async function handleSend(payload: {
     content: string;
     mentions: string[];
     useDedicatedDirectSession: boolean;
 }) {
+    if (isAgentDialogueConversation.value && currentAgentDialogue.value) {
+        await conversationStore.sendAgentDialogueIntervention(currentAgentDialogue.value.id, payload.content);
+        return;
+    }
     await conversationStore.sendMessage(payload.content, payload.mentions, payload.useDedicatedDirectSession);
+}
+
+async function pauseDialogue() {
+    if (!currentAgentDialogue.value) {
+        return;
+    }
+    await conversationStore.pauseCurrentAgentDialogue(currentAgentDialogue.value.id);
+}
+
+async function resumeDialogue() {
+    if (!currentAgentDialogue.value) {
+        return;
+    }
+    await conversationStore.resumeCurrentAgentDialogue(currentAgentDialogue.value.id);
+}
+
+async function stopDialogue() {
+    if (!currentAgentDialogue.value) {
+        return;
+    }
+    await conversationStore.stopCurrentAgentDialogue(currentAgentDialogue.value.id);
 }
 </script>
 

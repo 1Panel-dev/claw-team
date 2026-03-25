@@ -52,7 +52,7 @@ const { t } = useI18n();
 
 onMounted(async () => {
     try {
-        if (!addressBookStore.addressBook || !addressBookStore.recentConversations.length) {
+        if (!addressBookStore.addressBook || !addressBookStore.visibleRecentConversations.length) {
             await addressBookStore.loadAll();
         }
         initialized.value = true;
@@ -115,7 +115,7 @@ async function ensureConversationSelection() {
     // 单用户模式下，消息入口直接回到后端最近一条会话。
     // 不再优先群聊，也不依赖浏览器本地状态，
     // 这样不同访问地址仍然会落到同一份最新对话。
-    const targetConversationId = addressBookStore.recentConversations[0]?.id;
+    const targetConversationId = addressBookStore.visibleRecentConversations[0]?.id;
 
     if (targetConversationId) {
         if (conversationStore.currentConversationId !== targetConversationId) {

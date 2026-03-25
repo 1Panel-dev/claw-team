@@ -42,7 +42,7 @@ export interface MessageView {
 }
 
 export function toMessageView(message: MessageReadApi): MessageView {
-    const parts = message.parts?.length ? normalizeApiParts(message.parts) : parseMessageParts(message.content);
+    const parts = (message.parts?.length ? normalizeApiParts(message.parts) : parseMessageParts(message.content)).filter(isRenderablePart);
 
     return {
         id: message.id,
@@ -54,6 +54,16 @@ export function toMessageView(message: MessageReadApi): MessageView {
         updatedAt: message.updated_at,
         parts,
     };
+}
+
+function isRenderablePart(part: MessagePartView): boolean {
+    if (part.kind === "markdown") {
+        return part.content.trim().length > 0;
+    }
+    if (part.kind === "attachment") {
+        return Boolean(part.name.trim() || part.url.trim());
+    }
+    return Boolean(part.title.trim() || part.summary.trim());
 }
 
 function parseMessageParts(content: string): MessagePartView[] {

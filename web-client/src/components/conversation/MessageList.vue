@@ -7,16 +7,24 @@
       {{ t("conversation.emptyMessages") }}
     </div>
     <div
-      v-for="message in messageViews"
+      v-for="message in visibleMessageViews"
       :key="message.id"
       class="message-list__item"
       :class="{
         'message-list__item--user': message.senderType === 'user',
+        'message-list__item--speaker-accented': shouldAccentSpeakers && !!speakerColorMap[message.senderLabel],
       }"
+      :style="speakerStyleFor(message)"
     >
       <div class="message-list__meta">
         <div class="message-list__meta-main">
           <span class="message-list__sender">{{ message.senderLabel }}</span>
+          <span
+            v-if="resolvedSenderMetaMap[message.senderLabel]?.roleName"
+            class="message-list__sender-role"
+          >
+            / {{ resolvedSenderMetaMap[message.senderLabel]?.roleName }}
+          </span>
           <span
             v-if="message.source === 'webchat'"
             class="message-list__source-badge"
@@ -95,20 +103,36 @@ import { useI18n } from "@/composables/useI18n";
 import type { MessageReadApi } from "@/types/api/conversation";
 import type { MessagePartView, MessageView } from "@/types/view/message";
 import { toMessageView } from "@/types/view/message";
+import { formatServerDateTime } from "@/utils/datetime";
 
 const props = defineProps<{
     messages: MessageReadApi[];
     loading: boolean;
     showTypingIndicator?: boolean;
+    senderMetaMap?: Record<string, { roleName?: string | null }>;
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
 const bottomRef = ref<HTMLElement | null>(null);
 const messageViews = computed(() => props.messages.map((item) => toMessageView(item)));
+// 空白消息在展示层没有任何价值，直接从渲染列表里去掉，
+// 比渲染一个再用 v-show 隐藏更干净，也不会留下无意义的 DOM。
+const visibleMessageViews = computed(() => messageViews.value.filter((item) => item.parts.length > 0));
 const hasInitializedScroll = ref(false);
 const copiedMessageId = ref<string | null>(null);
 const { locale, t } = useI18n();
 let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
+const resolvedSenderMetaMap = computed(() => props.senderMetaMap ?? {});
+const SPEAKER_COLORS = [
+    "#c05621",
+    "#2b6cb0",
+    "#2f855a",
+    "#9b2c2c",
+    "#7b2cbf",
+    "#0f766e",
+    "#b45309",
+    "#1d4ed8",
+];
 const scrollTrigger = computed(() => {
     const lastMessage = props.messages.at(-1);
     return [
@@ -120,6 +144,24 @@ const scrollTrigger = computed(() => {
         lastMessage?.content ?? "",
     ].join("|");
 });
+
+const speakerColorMap = computed<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    const labels = Array.from(
+        new Set(
+            messageViews.value
+                .filter((message) => message.senderType !== "user" && message.senderType !== "system")
+                .map((message) => message.senderLabel.trim())
+                .filter(Boolean),
+        ),
+    );
+    for (const [index, label] of labels.entries()) {
+        map[label] = SPEAKER_COLORS[index % SPEAKER_COLORS.length];
+    }
+    return map;
+});
+
+const shouldAccentSpeakers = computed(() => Object.keys(speakerColorMap.value).length > 1);
 
 async function scrollToBottom(behavior: ScrollBehavior = "smooth") {
     await nextTick();
@@ -157,12 +199,25 @@ watch(
 );
 
 function formatDateTime(value: string) {
-    return new Intl.DateTimeFormat(locale.value, {
+    return formatServerDateTime(value, locale.value, {
         month: "numeric",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-    }).format(new Date(value));
+    });
+}
+
+function speakerStyleFor(message: MessageView) {
+    if (!shouldAccentSpeakers.value) {
+        return undefined;
+    }
+    const color = speakerColorMap.value[message.senderLabel];
+    if (!color) {
+        return undefined;
+    }
+    return {
+        "--message-speaker-color": color,
+    } as Record<string, string>;
 }
 
 function formatMessagePart(part: MessagePartView): string {
@@ -226,6 +281,11 @@ onBeforeUnmount(() => {
   background: #f7f7f8;
 }
 
+.message-list__item--speaker-accented {
+  border-left: 4px solid var(--message-speaker-color);
+  padding-left: 13px;
+}
+
 .message-list__item--user {
   margin-left: auto;
   width: min(56%, 760px);
@@ -259,7 +319,18 @@ onBeforeUnmount(() => {
 }
 
 .message-list__sender {
+  font-size: 0.93rem;
+  font-weight: 700;
+}
+
+.message-list__sender-role {
+  font-size: 0.9rem;
   font-weight: 600;
+  color: #7b8190;
+}
+
+.message-list__item--speaker-accented .message-list__sender {
+  color: var(--message-speaker-color);
 }
 
 .message-list__source-badge {

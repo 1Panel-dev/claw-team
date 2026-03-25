@@ -10,6 +10,7 @@ from pydantic import BaseModel
 class AddressBookAgent(BaseModel):
     id: int
     agent_key: str
+    ct_id: str
     display_name: str
     role_name: str | None
     enabled: bool

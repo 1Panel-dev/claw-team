@@ -1,0 +1,39 @@
+export interface AgentDialogueCreateApi {
+    source_agent_id: number;
+    target_agent_id: number;
+    topic: string;
+    window_seconds?: number;
+    soft_message_limit?: number;
+    hard_message_limit?: number;
+}
+
+export interface AgentDialogueReadApi {
+    id: number;
+    conversation_id: number;
+    source_agent_id: number;
+    source_agent_ct_id: string;
+    source_agent_display_name: string;
+    target_agent_id: number;
+    target_agent_ct_id: string;
+    target_agent_display_name: string;
+    topic: string;
+    status: string;
+    initiator_type: string;
+    initiator_agent_id: number | null;
+    window_seconds: number;
+    soft_message_limit: number;
+    hard_message_limit: number;
+    soft_limit_warned_at: string | null;
+    last_speaker_agent_id: number | null;
+    last_speaker_agent_ct_id: string | null;
+    last_speaker_agent_display_name: string | null;
+    next_agent_id: number | null;
+    next_agent_ct_id: string | null;
+    next_agent_display_name: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AgentDialogueMessageCreateApi {
+    content: string;
+}

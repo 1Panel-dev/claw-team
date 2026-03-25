@@ -1,6 +1,14 @@
 import { defineStore } from "pinia";
 
 import {
+    createAgentDialogue,
+    fetchAgentDialogue,
+    pauseAgentDialogue,
+    resumeAgentDialogue,
+    sendAgentDialogueMessage,
+    stopAgentDialogue,
+} from "@/api/agent-dialogues";
+import {
     createDirectConversation,
     createGroupConversation,
     fetchConversationMessages,
@@ -15,6 +23,7 @@ import {
 } from "@/mocks/messageWorkbench";
 import { useAddressBookStore } from "@/stores/addressBook";
 import type { ConversationReadApi, DispatchReadApi, MessageReadApi } from "@/types/api/conversation";
+import type { AgentDialogueReadApi } from "@/types/api/agent-dialogue";
 
 function mergeById<T extends { id: string }>(base: T[], incoming: T[]): T[] {
     const map = new Map<string, T>();
@@ -31,6 +40,7 @@ export const useConversationStore = defineStore("conversation", {
     state: () => ({
         currentConversationId: null as number | null,
         currentConversation: null as ConversationReadApi | null,
+        currentAgentDialogue: null as AgentDialogueReadApi | null,
         messages: [] as MessageReadApi[],
         dispatches: [] as DispatchReadApi[],
         nextMessageCursor: null as string | null,
@@ -54,9 +64,23 @@ export const useConversationStore = defineStore("conversation", {
             await useAddressBookStore().refreshRecentConversations();
             await this.openConversation(conversation.id, conversation);
         },
+        async createAndOpenAgentDialogue(payload: {
+            source_agent_id: number;
+            target_agent_id: number;
+            topic: string;
+            window_seconds?: number;
+            soft_message_limit?: number;
+            hard_message_limit?: number;
+        }) {
+            const dialogue = await createAgentDialogue(payload);
+            await useAddressBookStore().refreshRecentConversations();
+            await this.openConversation(dialogue.conversation_id);
+            return dialogue;
+        },
         async openConversation(conversationId: number, seedConversation?: ConversationReadApi) {
             this.currentConversationId = conversationId;
             this.currentConversation = seedConversation ?? null;
+            this.currentAgentDialogue = null;
             this.messages = [];
             this.dispatches = [];
             this.nextMessageCursor = null;
@@ -74,6 +98,9 @@ export const useConversationStore = defineStore("conversation", {
                     ? await fetchMockConversationMessages(this.currentConversationId)
                     : await fetchConversationMessages(this.currentConversationId);
                 this.currentConversation = payload.conversation;
+                this.currentAgentDialogue = payload.conversation.agent_dialogue_id
+                    ? await fetchAgentDialogue(payload.conversation.agent_dialogue_id)
+                    : null;
                 this.messages = payload.messages;
                 this.dispatches = payload.dispatches;
                 this.nextMessageCursor = payload.next_message_cursor;
@@ -101,6 +128,9 @@ export const useConversationStore = defineStore("conversation", {
                         dispatchAfter: this.nextDispatchCursor,
                     });
                 this.currentConversation = payload.conversation;
+                this.currentAgentDialogue = payload.conversation.agent_dialogue_id
+                    ? await fetchAgentDialogue(payload.conversation.agent_dialogue_id)
+                    : null;
                 this.messages = mergeById(this.messages, payload.messages);
                 this.dispatches = mergeById(this.dispatches, payload.dispatches);
                 this.nextMessageCursor = payload.next_message_cursor;
@@ -137,6 +167,33 @@ export const useConversationStore = defineStore("conversation", {
             } finally {
                 this.sending = false;
             }
+        },
+        async pauseCurrentAgentDialogue(dialogueId: number) {
+            await pauseAgentDialogue(dialogueId);
+            this.currentAgentDialogue = await fetchAgentDialogue(dialogueId);
+            await this.reloadCurrentConversation();
+            await useAddressBookStore().refreshRecentConversations();
+        },
+        async resumeCurrentAgentDialogue(dialogueId: number) {
+            await resumeAgentDialogue(dialogueId);
+            this.currentAgentDialogue = await fetchAgentDialogue(dialogueId);
+            await this.reloadCurrentConversation();
+            await useAddressBookStore().refreshRecentConversations();
+        },
+        async stopCurrentAgentDialogue(dialogueId: number) {
+            await stopAgentDialogue(dialogueId);
+            this.currentAgentDialogue = await fetchAgentDialogue(dialogueId);
+            await this.reloadCurrentConversation();
+            await useAddressBookStore().refreshRecentConversations();
+        },
+        async sendAgentDialogueIntervention(dialogueId: number, content: string) {
+            if (!content.trim()) {
+                return;
+            }
+            await sendAgentDialogueMessage(dialogueId, { content });
+            this.currentAgentDialogue = await fetchAgentDialogue(dialogueId);
+            await this.reloadCurrentConversation();
+            await useAddressBookStore().refreshRecentConversations();
         },
         async refreshConversationList() {
             await useAddressBookStore().refreshRecentConversations();

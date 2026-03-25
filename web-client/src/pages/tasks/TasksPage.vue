@@ -110,6 +110,7 @@ import { useI18n } from "@/composables/useI18n";
 import { useOpenClawStore } from "@/stores/openclaw";
 import { useTaskStore } from "@/stores/task";
 import type { TaskCreatePayload, TaskStatus } from "@/types/view/task";
+import { formatServerDateTime } from "@/utils/datetime";
 
 const taskStore = useTaskStore();
 const openClawStore = useOpenClawStore();
@@ -374,13 +375,13 @@ function statusLabel(status: TaskStatus) {
 }
 
 function formatDateTime(value: string) {
-    return new Intl.DateTimeFormat("zh-CN", {
+    return formatServerDateTime(value, "zh-CN", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
-    }).format(new Date(value));
+    });
 }
 </script>
 

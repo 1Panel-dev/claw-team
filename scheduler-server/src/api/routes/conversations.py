@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from src.api.deps import db_session
 from src.core.config import settings
 from src.integrations.channel_client import channel_client
+from src.models.agent_dialogue import AgentDialogue
 from src.models.agent_profile import AgentProfile
 from src.models.chat_group import ChatGroup
 from src.models.chat_group_member import ChatGroupMember
@@ -65,12 +66,20 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
             .where(Message.conversation_id == conversation.id)
             .order_by(Message.created_at.desc(), Message.id.desc())
         )
+        dialogue = db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == conversation.id))
         group = db.get(ChatGroup, conversation.group_id) if conversation.group_id else None
         instance = db.get(OpenClawInstance, conversation.direct_instance_id) if conversation.direct_instance_id else None
         agent = db.get(AgentProfile, conversation.direct_agent_id) if conversation.direct_agent_id else None
+        source_agent = db.get(AgentProfile, dialogue.source_agent_id) if dialogue else None
+        target_agent = db.get(AgentProfile, dialogue.target_agent_id) if dialogue else None
 
         if conversation.type == "group":
             display_title = conversation.title or (group.name if group else f"群聊 {conversation.id}")
+        elif conversation.type == "agent_dialogue":
+            if source_agent and target_agent:
+                display_title = f"{source_agent.display_name} ↔ {target_agent.display_name}"
+            else:
+                display_title = conversation.title or f"Agent 对话 {conversation.id}"
         else:
             if instance and agent:
                 display_title = f"{instance.name} / {agent.display_name}"
@@ -98,6 +107,12 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
                 group_name=group.name if group else None,
                 instance_name=instance.name if instance else None,
                 agent_display_name=agent.display_name if agent else None,
+                dialogue_source_agent_name=source_agent.display_name if source_agent else None,
+                dialogue_target_agent_name=target_agent.display_name if target_agent else None,
+                dialogue_status=dialogue.status if dialogue else None,
+                dialogue_window_seconds=dialogue.window_seconds if dialogue else None,
+                dialogue_soft_message_limit=dialogue.soft_message_limit if dialogue else None,
+                dialogue_hard_message_limit=dialogue.hard_message_limit if dialogue else None,
                 last_message_id=last_message.id if last_message else None,
                 last_message_preview=preview,
                 last_message_sender_type=last_message.sender_type if last_message else None,
@@ -171,6 +186,7 @@ def list_conversation_messages(
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="conversation not found")
+    dialogue = db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == conversation_id))
 
     _finalize_stale_dispatches(db=db, conversation_id=conversation_id)
 
@@ -203,7 +219,17 @@ def list_conversation_messages(
         )
     )
     return ConversationMessagesResponse(
-        conversation=validate_orm(ConversationRead, conversation),
+        conversation=ConversationRead(
+            id=conversation.id,
+            type=conversation.type,
+            title=conversation.title,
+            group_id=conversation.group_id,
+            direct_instance_id=conversation.direct_instance_id,
+            direct_agent_id=conversation.direct_agent_id,
+            agent_dialogue_id=dialogue.id if dialogue else None,
+            created_at=conversation.created_at,
+            updated_at=conversation.updated_at,
+        ),
         messages=[build_message_read(item) for item in messages],
         dispatches=[validate_orm(DispatchRead, item) for item in dispatches],
         next_message_cursor=messages[-1].id if messages else message_after,

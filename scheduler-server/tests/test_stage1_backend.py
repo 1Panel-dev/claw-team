@@ -8,10 +8,12 @@
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -21,6 +23,7 @@ from src.api.deps import db_session
 from src.core.db import Base
 from src.main import create_app
 from src.models.agent_profile import AgentProfile
+from src.models.agent_dialogue import AgentDialogue
 from src.models.chat_group import ChatGroup
 from src.models.conversation import Conversation
 from src.models.message import Message
@@ -29,6 +32,7 @@ from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.models.task import Task
 from src.core.config import settings
+from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 
 
 class Stage1BackendTests(unittest.TestCase):
@@ -65,6 +69,9 @@ class Stage1BackendTests(unittest.TestCase):
         self.app.dependency_overrides.clear()
         self.engine.dispose()
         self.temp_dir.cleanup()
+
+    def _run_async(self, awaitable):
+        return asyncio.run(awaitable)
 
     def test_list_conversations_returns_sidebar_summary(self) -> None:
         """
@@ -141,6 +148,703 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(payload[1]["type"], "direct")
         self.assertEqual(payload[1]["instance_name"], "OpenClaw A")
         self.assertEqual(payload[1]["agent_display_name"], "Main Agent")
+
+    def test_agent_dialogue_model_can_persist_with_agent_dialogue_conversation(self) -> None:
+        """
+        双 Agent 对话的基础模型至少要能在当前测试库里创建和读取，
+        这样后面的路由和状态机实现才有稳定底座。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="liaotian",
+                display_name="liaotian",
+                role_name="聊天专家",
+                enabled=True,
+            )
+            target_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="weather",
+                display_name="weather",
+                role_name="天气助手",
+                enabled=True,
+            )
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(
+                type="agent_dialogue",
+                title="liaotian ↔ weather",
+            )
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="讨论今天的天气播报",
+                status="active",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+            )
+            db.add(dialogue)
+            db.commit()
+
+            saved = db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == conversation.id))
+            self.assertIsNotNone(saved)
+            assert saved is not None
+            self.assertEqual(saved.topic, "讨论今天的天气播报")
+            self.assertEqual(saved.status, "active")
+            self.assertEqual(saved.window_seconds, 300)
+            self.assertEqual(saved.soft_message_limit, 12)
+            self.assertEqual(saved.hard_message_limit, 20)
+
+    def test_create_agent_dialogue_adds_conversation_and_opening_message(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="liaotian",
+                display_name="liaotian",
+                role_name="聊天专家",
+                enabled=True,
+            )
+            target_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="weather",
+                display_name="weather",
+                role_name="天气助手",
+                enabled=True,
+            )
+            db.add_all([source_agent, target_agent])
+            db.commit()
+            source_agent_id = source_agent.id
+            target_agent_id = target_agent.id
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-agent-dialogue"})):
+            response = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_agent_id": source_agent_id,
+                    "target_agent_id": target_agent_id,
+                    "topic": "请讨论今天的大兴天气",
+                    "window_seconds": 300,
+                    "soft_message_limit": 12,
+                    "hard_message_limit": 20,
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "active")
+        self.assertEqual(payload["window_seconds"], 300)
+        self.assertEqual(payload["soft_message_limit"], 12)
+        self.assertEqual(payload["hard_message_limit"], 20)
+
+        with self.SessionLocal() as db:
+            dialogue = db.get(AgentDialogue, payload["id"])
+            self.assertIsNotNone(dialogue)
+            assert dialogue is not None
+            conversation = db.get(Conversation, dialogue.conversation_id)
+            self.assertIsNotNone(conversation)
+            assert conversation is not None
+            self.assertEqual(conversation.type, "agent_dialogue")
+            opening = db.scalar(select(Message).where(Message.conversation_id == conversation.id))
+            self.assertIsNotNone(opening)
+            assert opening is not None
+            self.assertEqual(opening.sender_type, "user")
+            self.assertEqual(opening.content, "请讨论今天的大兴天气")
+            first_dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == conversation.id))
+            self.assertIsNotNone(first_dispatch)
+            assert first_dispatch is not None
+            self.assertEqual(first_dispatch.dispatch_mode, "agent_dialogue_opening")
+            self.assertEqual(first_dispatch.status, "accepted")
+
+    def test_agent_dialogue_control_endpoints_update_status(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(instance_id=instance.id, agent_key="a", display_name="A", role_name=None, enabled=True)
+            target_agent = AgentProfile(instance_id=instance.id, agent_key="b", display_name="B", role_name=None, enabled=True)
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title="A ↔ B")
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="测试控制",
+                status="active",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+            )
+            db.add(dialogue)
+            db.commit()
+            dialogue_id = dialogue.id
+
+        pause_response = self.client.post(f"/api/agent-dialogues/{dialogue_id}/pause")
+        self.assertEqual(pause_response.status_code, 200)
+        self.assertEqual(pause_response.json()["status"], "paused")
+
+        resume_response = self.client.post(f"/api/agent-dialogues/{dialogue_id}/resume")
+        self.assertEqual(resume_response.status_code, 200)
+        self.assertEqual(resume_response.json()["status"], "active")
+
+        stop_response = self.client.post(f"/api/agent-dialogues/{dialogue_id}/stop")
+        self.assertEqual(stop_response.status_code, 200)
+        self.assertEqual(stop_response.json()["status"], "stopped")
+
+    def test_agent_dialogue_intervention_dispatches_to_next_agent_when_active(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(instance_id=instance.id, agent_key="a", display_name="A", role_name=None, enabled=True)
+            target_agent = AgentProfile(instance_id=instance.id, agent_key="b", display_name="B", role_name=None, enabled=True)
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title="A ↔ B")
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="测试插话",
+                status="active",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+                last_speaker_agent_id=source_agent.id,
+            )
+            db.add(dialogue)
+            db.commit()
+            dialogue_id = dialogue.id
+            conversation_id = conversation.id
+            target_agent_id = target_agent.id
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-intervention"})):
+            response = self.client.post(
+                f"/api/agent-dialogues/{dialogue_id}/messages",
+                json={"content": "请换个角度继续讨论"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        with self.SessionLocal() as db:
+            messages = db.scalars(
+                select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)
+            ).all()
+            self.assertEqual(messages[-1].sender_type, "user")
+            self.assertEqual(messages[-1].content, "请换个角度继续讨论")
+
+            dispatches = db.scalars(
+                select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id).order_by(MessageDispatch.created_at)
+            ).all()
+            self.assertEqual(len(dispatches), 1)
+            self.assertEqual(dispatches[0].dispatch_mode, "agent_dialogue_intervention")
+            self.assertEqual(dispatches[0].agent_id, target_agent_id)
+            self.assertEqual(dispatches[0].status, "accepted")
+
+    def test_agent_dialogue_intervention_reopens_completed_dialogue(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(instance_id=instance.id, agent_key="a", display_name="A", role_name=None, enabled=True)
+            target_agent = AgentProfile(instance_id=instance.id, agent_key="b", display_name="B", role_name=None, enabled=True)
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title="A ↔ B")
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="测试续一轮",
+                status="completed",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+                last_speaker_agent_id=target_agent.id,
+            )
+            db.add(dialogue)
+            db.commit()
+            dialogue_id = dialogue.id
+            conversation_id = conversation.id
+            source_agent_id = source_agent.id
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-reopen"})):
+            response = self.client.post(
+                f"/api/agent-dialogues/{dialogue_id}/messages",
+                json={"content": "继续接龙"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        with self.SessionLocal() as db:
+            dialogue = db.get(AgentDialogue, dialogue_id)
+            self.assertIsNotNone(dialogue)
+            assert dialogue is not None
+            self.assertEqual(dialogue.status, "active")
+            self.assertEqual(dialogue.window_seconds, 300)
+
+            dispatches = db.scalars(
+                select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id).order_by(MessageDispatch.created_at)
+            ).all()
+            self.assertEqual(len(dispatches), 1)
+            self.assertEqual(dispatches[0].dispatch_mode, "agent_dialogue_intervention")
+            self.assertEqual(dispatches[0].agent_id, source_agent_id)
+
+    def test_agent_dialogue_soft_limit_warns_but_keeps_running(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(instance_id=instance.id, agent_key="a", display_name="A", role_name=None, enabled=True)
+            target_agent = AgentProfile(instance_id=instance.id, agent_key="b", display_name="B", role_name=None, enabled=True)
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title="A ↔ B")
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="测试软阈值",
+                status="active",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=2,
+                hard_message_limit=4,
+                soft_limit_warned_at=None,
+            )
+            db.add(dialogue)
+            db.flush()
+
+            opening_message = Message(
+                id="msg_turn_opening",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="开始讨论",
+                status="completed",
+            )
+            db.add(opening_message)
+            first_dispatch = MessageDispatch(
+                id="dsp_turn_source",
+                message_id=opening_message.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=source_agent.id,
+                dispatch_mode="agent_dialogue_opening",
+                channel_message_id=opening_message.id,
+                status="completed",
+            )
+            db.add(first_dispatch)
+            source_reply = Message(
+                id="msg_turn_source_reply",
+                conversation_id=conversation.id,
+                sender_type="agent",
+                sender_label="A",
+                content="我是 A",
+                status="completed",
+            )
+            db.add(source_reply)
+            db.commit()
+
+            with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-turn-source"})):
+                dispatch_id = self._run_async(
+                    continue_agent_dialogue_after_reply(
+                        db=db,
+                        dialogue=dialogue,
+                        dispatch=first_dispatch,
+                        reply_message=source_reply,
+                    )
+                )
+            self.assertIsNotNone(dispatch_id)
+            self.assertEqual(dialogue.last_speaker_agent_id, source_agent.id)
+            self.assertEqual(dialogue.status, "active")
+            self.assertIsNotNone(dialogue.soft_limit_warned_at)
+
+            warning = db.scalar(
+                select(Message)
+                .where(Message.conversation_id == conversation.id)
+                .where(Message.sender_type == "system")
+            )
+            self.assertIsNotNone(warning)
+            assert warning is not None
+            self.assertIn("短时间内对话次数较多", warning.content)
+
+    def test_agent_dialogue_hard_limit_stops_relay(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(instance_id=instance.id, agent_key="a", display_name="A", role_name=None, enabled=True)
+            target_agent = AgentProfile(instance_id=instance.id, agent_key="b", display_name="B", role_name=None, enabled=True)
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title="A ↔ B")
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="测试硬阈值",
+                status="active",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=2,
+                hard_message_limit=3,
+                soft_limit_warned_at=None,
+            )
+            db.add(dialogue)
+            db.flush()
+
+            now = datetime.utcnow()
+            recent_user = Message(
+                id="msg_recent_user",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="第一条",
+                status="completed",
+            )
+            recent_agent = Message(
+                id="msg_recent_agent",
+                conversation_id=conversation.id,
+                sender_type="agent",
+                sender_label="A",
+                content="第二条",
+                status="completed",
+            )
+            target_reply = Message(
+                id="msg_turn_target_reply",
+                conversation_id=conversation.id,
+                sender_type="agent",
+                sender_label="B",
+                content="第三条",
+                status="completed",
+            )
+            db.add_all([recent_user, recent_agent, target_reply])
+            db.flush()
+            for message in (recent_user, recent_agent, target_reply):
+                message.created_at = now
+                message.updated_at = now
+
+            second_dispatch = MessageDispatch(
+                id="dsp_turn_target",
+                message_id=recent_agent.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=target_agent.id,
+                dispatch_mode="agent_dialogue_relay",
+                channel_message_id=recent_agent.id,
+                status="completed",
+            )
+            db.add(second_dispatch)
+            db.commit()
+
+            with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-turn-target"})):
+                relay_id = self._run_async(
+                    continue_agent_dialogue_after_reply(
+                        db=db,
+                        dialogue=dialogue,
+                        dispatch=second_dispatch,
+                        reply_message=target_reply,
+                    )
+                )
+            self.assertIsNone(relay_id)
+            self.assertEqual(dialogue.status, "stopped")
+
+    def test_agent_dialogue_relay_wraps_partner_context(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="liaotian",
+                ct_id="CTA-0006",
+                display_name="liaotian",
+                role_name="聊天专家",
+                enabled=True,
+            )
+            target_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="testbot",
+                ct_id="CTA-0009",
+                display_name="TestBot",
+                role_name="测试专家",
+                enabled=True,
+            )
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title="liaotian ↔ TestBot")
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="继续接龙",
+                status="active",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+                last_speaker_agent_id=source_agent.id,
+            )
+            db.add(dialogue)
+            db.flush()
+
+            previous_message = Message(
+                id="msg_dialogue_previous",
+                conversation_id=conversation.id,
+                sender_type="agent",
+                sender_label="liaotian",
+                content="那我们继续接龙吧。",
+                status="completed",
+            )
+            db.add(previous_message)
+            db.commit()
+
+            mocked_send = AsyncMock(return_value={"traceId": "trace-context"})
+            with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=mocked_send):
+                response = self.client.post(f"/api/agent-dialogues/{dialogue.id}/messages", json={"content": "继续接龙"})
+
+            self.assertEqual(response.status_code, 200)
+            mocked_send.assert_awaited_once()
+            payload = mocked_send.await_args.kwargs["payload"]
+            self.assertEqual(payload["directAgentId"], "testbot")
+            self.assertIn("[Claw Team Agent Dialogue]", payload["text"])
+            self.assertIn("Dialogue ID: AD-", payload["text"])
+            self.assertIn("Your identity: TestBot (CTA-0009)", payload["text"])
+            self.assertIn("Current partner: liaotian (CTA-0006)", payload["text"])
+            self.assertIn("Human guidance:", payload["text"])
+            self.assertIn("继续接龙", payload["text"])
+
+    def test_resume_agent_dialogue_dispatches_latest_pending_agent_message(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(instance_id=instance.id, agent_key="a", display_name="A", role_name=None, enabled=True)
+            target_agent = AgentProfile(instance_id=instance.id, agent_key="b", display_name="B", role_name=None, enabled=True)
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title="A ↔ B")
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="测试恢复",
+                status="paused",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+                last_speaker_agent_id=source_agent.id,
+            )
+            db.add(dialogue)
+            db.flush()
+
+            db.add(
+                Message(
+                    id="msg_agent_pending_001",
+                    conversation_id=conversation.id,
+                    sender_type="agent",
+                    sender_label="A",
+                    content="这是暂停期间收到的回复",
+                    status="completed",
+                )
+            )
+            db.commit()
+            dialogue_id = dialogue.id
+            conversation_id = conversation.id
+            target_agent_id = target_agent.id
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-resume"})):
+            response = self.client.post(f"/api/agent-dialogues/{dialogue_id}/resume")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "active")
+        with self.SessionLocal() as db:
+            dispatches = db.scalars(
+                select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id).order_by(MessageDispatch.created_at)
+            ).all()
+            self.assertEqual(len(dispatches), 1)
+            self.assertEqual(dispatches[0].dispatch_mode, "agent_dialogue_relay")
+            self.assertEqual(dispatches[0].agent_id, target_agent_id)
+            self.assertEqual(dispatches[0].status, "accepted")
+
+    def test_list_conversations_includes_agent_dialogue_summary(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(instance_id=instance.id, agent_key="liaotian", display_name="liaotian", role_name=None, enabled=True)
+            target_agent = AgentProfile(instance_id=instance.id, agent_key="weather", display_name="weather", role_name=None, enabled=True)
+            db.add_all([source_agent, target_agent])
+            db.flush()
+
+            conversation = Conversation(type="agent_dialogue", title=None)
+            db.add(conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=conversation.id,
+                source_agent_id=source_agent.id,
+                target_agent_id=target_agent.id,
+                topic="讨论天气",
+                status="active",
+                initiator_type="user",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+                last_speaker_agent_id=source_agent.id,
+            )
+            db.add(dialogue)
+            db.add(
+                Message(
+                    id="msg_dialogue_001",
+                    conversation_id=conversation.id,
+                    sender_type="agent",
+                    sender_label="liaotian",
+                    content="我先抛一个问题。",
+                    status="completed",
+                )
+            )
+            db.commit()
+
+        response = self.client.get("/api/conversations")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        dialogue_item = next(item for item in payload if item["type"] == "agent_dialogue")
+        self.assertEqual(dialogue_item["display_title"], "liaotian ↔ weather")
+        self.assertEqual(dialogue_item["dialogue_status"], "active")
+        self.assertEqual(dialogue_item["dialogue_window_seconds"], 300)
+        self.assertEqual(dialogue_item["dialogue_soft_message_limit"], 12)
+        self.assertEqual(dialogue_item["dialogue_hard_message_limit"], 20)
 
     def test_list_conversation_messages_supports_incremental_polling(self) -> None:
         """

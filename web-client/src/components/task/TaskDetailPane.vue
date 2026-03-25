@@ -111,6 +111,7 @@
  * 后续真实任务 API 落地时，组件结构基本可以保持不变。
  */
 import type { TaskPriority, TaskStatus, TaskView } from "@/types/view/task";
+import { formatServerDateTime, parseServerDateTime } from "@/utils/datetime";
 
 defineProps<{
     task: TaskView | null;
@@ -145,19 +146,19 @@ function statusLabel(status: TaskStatus) {
 }
 
 function formatDateTime(value: string) {
-    return new Intl.DateTimeFormat("zh-CN", {
+    return formatServerDateTime(value, "zh-CN", {
         month: "numeric",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-    }).format(new Date(value));
+    });
 }
 
 function durationLabel(startedAt: string, endedAt: string | null) {
     if (!endedAt) {
         return "任务仍在进行中";
     }
-    const durationMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+    const durationMs = parseServerDateTime(endedAt).getTime() - parseServerDateTime(startedAt).getTime();
     const hours = Math.floor(durationMs / (1000 * 60 * 60));
     const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
     return `持续 ${hours} 小时 ${minutes} 分钟`;

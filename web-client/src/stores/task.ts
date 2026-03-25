@@ -8,6 +8,7 @@ import {
 } from "@/api/tasks";
 import type { TaskReadApi } from "@/types/api/task";
 import type { TaskCreatePayload, TaskFilterState, TaskPriority, TaskStatus, TaskView } from "@/types/view/task";
+import { parseServerDateTime } from "@/utils/datetime";
 
 function createDemoTasks(): TaskView[] {
     return [
@@ -146,7 +147,7 @@ function createDemoTasks(): TaskView[] {
 }
 
 function byUpdatedDesc(a: TaskView, b: TaskView) {
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    return parseServerDateTime(b.updatedAt).getTime() - parseServerDateTime(a.updatedAt).getTime();
 }
 
 function replaceTask(items: TaskView[], nextTask: TaskView): TaskView[] {

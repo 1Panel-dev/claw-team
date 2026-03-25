@@ -84,6 +84,57 @@ def ensure_runtime_schema() -> None:
         agent_columns = {column["name"] for column in inspector.get_columns("agent_profiles")}
         if "created_via_claw_team" not in agent_columns:
             statements.append("ALTER TABLE agent_profiles ADD COLUMN created_via_claw_team BOOLEAN DEFAULT 0")
+        if "ct_id" not in agent_columns:
+            statements.append("ALTER TABLE agent_profiles ADD COLUMN ct_id VARCHAR(32)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_agent_profiles_ct_id ON agent_profiles (ct_id)")
+
+    if "agent_dialogues" not in table_names:
+        # 第一阶段直接用启动期补丁兜底，避免老的 SQLite 开发库缺表后整条会话链起不来。
+        statements.extend(
+            [
+                """
+                CREATE TABLE IF NOT EXISTS agent_dialogues (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    conversation_id INTEGER NOT NULL,
+                    source_agent_id INTEGER NOT NULL,
+                    target_agent_id INTEGER NOT NULL,
+                    topic VARCHAR(500) NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'active',
+                    initiator_type VARCHAR(20) NOT NULL DEFAULT 'user',
+                    initiator_agent_id INTEGER NULL,
+                    max_turns INTEGER NOT NULL DEFAULT 0,
+                    current_turn INTEGER NOT NULL DEFAULT 0,
+                    window_seconds INTEGER NOT NULL DEFAULT 300,
+                    soft_message_limit INTEGER NOT NULL DEFAULT 12,
+                    hard_message_limit INTEGER NOT NULL DEFAULT 20,
+                    soft_limit_warned_at DATETIME NULL,
+                    last_speaker_agent_id INTEGER NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(conversation_id) REFERENCES conversations (id),
+                    FOREIGN KEY(source_agent_id) REFERENCES agent_profiles (id),
+                    FOREIGN KEY(target_agent_id) REFERENCES agent_profiles (id),
+                    FOREIGN KEY(initiator_agent_id) REFERENCES agent_profiles (id),
+                    FOREIGN KEY(last_speaker_agent_id) REFERENCES agent_profiles (id)
+                )
+                """,
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_agent_dialogues_conversation_id ON agent_dialogues (conversation_id)",
+                "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_source_agent_id ON agent_dialogues (source_agent_id)",
+                "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_target_agent_id ON agent_dialogues (target_agent_id)",
+                "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_initiator_agent_id ON agent_dialogues (initiator_agent_id)",
+                "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_last_speaker_agent_id ON agent_dialogues (last_speaker_agent_id)",
+            ]
+        )
+    else:
+        dialogue_columns = {column["name"] for column in inspector.get_columns("agent_dialogues")}
+        if "window_seconds" not in dialogue_columns:
+            statements.append("ALTER TABLE agent_dialogues ADD COLUMN window_seconds INTEGER NOT NULL DEFAULT 300")
+        if "soft_message_limit" not in dialogue_columns:
+            statements.append("ALTER TABLE agent_dialogues ADD COLUMN soft_message_limit INTEGER NOT NULL DEFAULT 12")
+        if "hard_message_limit" not in dialogue_columns:
+            statements.append("ALTER TABLE agent_dialogues ADD COLUMN hard_message_limit INTEGER NOT NULL DEFAULT 20")
+        if "soft_limit_warned_at" not in dialogue_columns:
+            statements.append("ALTER TABLE agent_dialogues ADD COLUMN soft_limit_warned_at DATETIME NULL")
 
     if not statements:
         return

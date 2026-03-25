@@ -30,7 +30,9 @@ from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.models.agent_dialogue import AgentDialogue
 from src.services.conversation_events import conversation_event_hub
+from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 
 router = APIRouter(prefix="/api/v1/claw-team", tags=["callbacks"])
 
@@ -143,12 +145,13 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
                         sender_label=agent.display_name,
                         content=text,
                         status="completed",
+                        )
                     )
-                )
             else:
                 agent_message.content = text
                 agent_message.status = "completed"
-            message.status = "completed"
+            if message.sender_type == "user":
+                message.status = "completed"
         elif event_type == "reply.chunk":
             chunk_text = str(event.get("payload", {}).get("text", ""))
             if chunk_text:
@@ -166,17 +169,31 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
                 else:
                     agent_message.content = f"{agent_message.content}{chunk_text}"
                     agent_message.status = "streaming"
-            message.status = _pick_higher_status(message.status, "streaming")
+            if message.sender_type == "user":
+                message.status = _pick_higher_status(message.status, "streaming")
         elif event_type == "run.error":
             if agent_message:
                 agent_message.status = "failed"
-            message.status = "failed"
+            if message.sender_type == "user":
+                message.status = "failed"
         else:
             # accepted / chunk 都还没结束，只更新用户消息的过程态。
             next_message_status = "accepted"
-            message.status = _pick_higher_status(message.status, next_message_status)
+            if message.sender_type == "user":
+                message.status = _pick_higher_status(message.status, next_message_status)
 
     db.commit()
+
+    if event_type == "reply.final" and agent_message:
+        dialogue = db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == dispatch.conversation_id))
+        if dialogue:
+            await continue_agent_dialogue_after_reply(
+                db=db,
+                dialogue=dialogue,
+                dispatch=dispatch,
+                reply_message=agent_message,
+            )
+
     await conversation_event_hub.publish_update(
         dispatch.conversation_id,
         {

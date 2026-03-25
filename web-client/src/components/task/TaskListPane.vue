@@ -103,6 +103,7 @@
  * 筛选条件和列表数据由 store 提供。
  */
 import type { TaskFilterState, TaskPriority, TaskStatus, TaskView } from "@/types/view/task";
+import { formatServerDateTime } from "@/utils/datetime";
 
 defineProps<{
     filters: TaskFilterState;
@@ -141,12 +142,12 @@ function statusLabel(status: TaskStatus) {
 }
 
 function formatTime(value: string) {
-    return new Intl.DateTimeFormat("zh-CN", {
+    return formatServerDateTime(value, "zh-CN", {
         month: "numeric",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-    }).format(new Date(value));
+    });
 }
 
 function handleStatusChange(event: Event) {

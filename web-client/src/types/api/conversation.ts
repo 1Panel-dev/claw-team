@@ -8,12 +8,19 @@ export interface ConversationListItemApi {
     group_id: number | null;
     direct_instance_id: number | null;
     direct_agent_id: number | null;
+    agent_dialogue_id?: number | null;
     created_at: string;
     updated_at: string;
     display_title: string;
     group_name: string | null;
     instance_name: string | null;
     agent_display_name: string | null;
+    dialogue_source_agent_name?: string | null;
+    dialogue_target_agent_name?: string | null;
+    dialogue_status?: string | null;
+    dialogue_window_seconds?: number | null;
+    dialogue_soft_message_limit?: number | null;
+    dialogue_hard_message_limit?: number | null;
     last_message_id: string | null;
     last_message_preview: string | null;
     last_message_sender_type: string | null;
@@ -29,6 +36,7 @@ export interface ConversationReadApi {
     group_id: number | null;
     direct_instance_id: number | null;
     direct_agent_id: number | null;
+    agent_dialogue_id?: number | null;
     created_at: string;
     updated_at: string;
 }

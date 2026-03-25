@@ -19,15 +19,18 @@
         />
       </el-select>
     </div>
-    <div v-else class="composer__direct-options">
+    <div v-else-if="!isAgentDialogue" class="composer__direct-options">
       <span class="composer__direct-options-label">{{ t("conversation.dedicatedSession") }}</span>
       <el-switch v-model="useDedicatedDirectSession" />
+    </div>
+    <div v-else class="composer__direct-options">
+      <span class="composer__direct-options-label">{{ t("conversation.agentDialogueComposerHint") }}</span>
     </div>
     <textarea
       v-model="content"
       class="composer__input"
       rows="4"
-      :placeholder="t('conversation.inputPlaceholder')"
+      :placeholder="isAgentDialogue ? t('conversation.agentDialogueInputPlaceholder') : t('conversation.inputPlaceholder')"
       @keydown="handleKeydown"
     />
     <div class="composer__actions">
@@ -67,7 +70,7 @@
           </div>
         </el-popover>
         <el-button type="primary" native-type="submit" :disabled="sending || !content.trim()">
-          {{ sending ? t("conversation.sending") : t("conversation.sendMessage") }}
+          {{ sending ? t("conversation.sending") : (isAgentDialogue ? t("conversation.insertGuidance") : t("conversation.sendMessage")) }}
         </el-button>
       </div>
     </div>
@@ -96,6 +99,7 @@ const DEFAULT_SHORTCUT: SendShortcut = {
 defineProps<{
     sending: boolean;
     isGroup: boolean;
+    isAgentDialogue?: boolean;
     mentionOptions: Array<{ value: string; label: string }>;
 }>();
 

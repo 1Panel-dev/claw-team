@@ -5,7 +5,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import address_book, agents, callbacks, conversations, groups, health, instances, tasks, ws
+from src.api.routes import address_book, agent_dialogues, agents, callbacks, conversations, groups, health, instances, tasks, ws
 from src.core.db import Base, engine, ensure_runtime_schema
 import src.models  # noqa: F401
 
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(instances.router)
     app.include_router(agents.router)
+    app.include_router(agent_dialogues.router)
     app.include_router(address_book.router)
     app.include_router(groups.router)
     app.include_router(conversations.router)

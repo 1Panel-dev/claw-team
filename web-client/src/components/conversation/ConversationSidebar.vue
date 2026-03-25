@@ -26,11 +26,11 @@
         </div>
 
         <button
-          v-if="activePane === 'groups'"
+          v-if="activePane === 'groups' || activePane === 'recent'"
           class="sidebar__plus"
           type="button"
-          :title="t('conversation.createGroup')"
-          @click="createDrawerVisible = true"
+          :title="activePane === 'groups' ? t('conversation.createGroup') : t('conversation.createAgentDialogue')"
+          @click="activePane === 'groups' ? createDrawerVisible = true : agentDialogueDrawerVisible = true"
         >
           +
         </button>
@@ -59,6 +59,7 @@
               'sidebar__item--direct': item.type === 'direct',
             }"
             type="button"
+            @contextmenu.prevent="openRecentConversationMenu($event, item.id)"
             @click="openConversation(item.id)"
           >
             <div class="sidebar__item-body">
@@ -70,8 +71,14 @@
               </div>
               <div class="sidebar__item-preview">{{ item.last_message_preview ?? t("conversation.noMessages") }}</div>
               <div class="sidebar__meta sidebar__meta--recent">
-                <span class="sidebar__conversation-kind" :class="{ 'sidebar__conversation-kind--group': item.type === 'group' }">
-                  {{ item.type === "group" ? t("conversation.group") : t("conversation.direct") }}
+                <span
+                  class="sidebar__conversation-kind"
+                  :class="{
+                    'sidebar__conversation-kind--group': item.type === 'group',
+                    'sidebar__conversation-kind--agent-dialogue': item.type === 'agent_dialogue',
+                  }"
+                >
+                  {{ conversationKindLabel(item.type) }}
                 </span>
                 <span class="sidebar__item-time">
                   {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
@@ -125,10 +132,28 @@
       </section>
     </section>
 
+    <teleport to="body">
+      <div
+        v-if="recentMenu.visible"
+        class="sidebar__context-menu"
+        :style="{ left: `${recentMenu.x}px`, top: `${recentMenu.y}px` }"
+      >
+        <button class="sidebar__context-menu-item" type="button" @click="hideRecentConversation">
+          {{ t("conversation.removeFromRecent") }}
+        </button>
+      </div>
+    </teleport>
+
     <GroupCreateDrawer
       v-model:visible="createDrawerVisible"
       :submitting="groupStore.creating"
       @submit="handleCreateGroup"
+    />
+
+    <AgentDialogueCreateDrawer
+      v-model:visible="agentDialogueDrawerVisible"
+      :agent-options="agentOptions"
+      @submit="handleCreateAgentDialogue"
     />
 
     <GroupMemberDrawer
@@ -150,17 +175,19 @@
  * 后面如果要做更复杂的最近/所有切换、搜索、未读状态，
  * 可以在这个组件内部继续扩展，而不用替换整个左侧栏。
  */
-import { computed, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
 import ElMessage from "element-plus/es/components/message/index";
 import { useRouter } from "vue-router";
 
 import GroupCreateDrawer from "@/components/group/GroupCreateDrawer.vue";
 import GroupMemberDrawer from "@/components/group/GroupMemberDrawer.vue";
+import AgentDialogueCreateDrawer from "@/components/conversation/AgentDialogueCreateDrawer.vue";
 import { useI18n } from "@/composables/useI18n";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
 import type { ConversationListItemApi } from "@/types/api/conversation";
+import { parseServerDateTime } from "@/utils/datetime";
 import { ref } from "vue";
 
 const router = useRouter();
@@ -168,14 +195,21 @@ const addressBookStore = useAddressBookStore();
 const conversationStore = useConversationStore();
 const groupStore = useGroupStore();
 const createDrawerVisible = ref(false);
+const agentDialogueDrawerVisible = ref(false);
 const memberDrawerVisible = ref(false);
 const searchQuery = ref("");
 const activePane = ref<"recent" | "agents" | "groups">("recent");
+const recentMenu = ref({
+    visible: false,
+    x: 0,
+    y: 0,
+    conversationId: null as number | null,
+});
 const { t } = useI18n();
 
 const instances = computed(() => addressBookStore.instances);
 const groups = computed(() => addressBookStore.groups);
-const recentConversations = computed(() => addressBookStore.recentConversations);
+const recentConversations = computed(() => addressBookStore.visibleRecentConversations);
 const recentLoading = computed(() => addressBookStore.recentLoading);
 const currentConversationId = computed(() => conversationStore.currentConversationId);
 const navItems = [
@@ -230,11 +264,30 @@ const filteredGroups = computed(() =>
         );
     }),
 );
+const agentOptions = computed(() =>
+    instances.value.flatMap((instance) =>
+        instance.agents
+            .filter((agent) => agent.enabled)
+            .map((agent) => ({
+                value: agent.id,
+                label: `${agent.display_name} / ${instance.name}`,
+            })),
+    ),
+);
 
 onMounted(async () => {
     if (!addressBookStore.addressBook) {
         await addressBookStore.loadAll();
     }
+    window.addEventListener("click", closeRecentConversationMenu);
+    window.addEventListener("resize", closeRecentConversationMenu);
+    window.addEventListener("blur", closeRecentConversationMenu);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener("click", closeRecentConversationMenu);
+    window.removeEventListener("resize", closeRecentConversationMenu);
+    window.removeEventListener("blur", closeRecentConversationMenu);
 });
 
 async function openDirect(instanceId: number, agentId: number) {
@@ -269,11 +322,43 @@ async function openGroup(groupId: number) {
 }
 
 async function openConversation(conversationId: number) {
+    closeRecentConversationMenu();
     if (conversationStore.currentConversationId === conversationId) {
         return;
     }
     await conversationStore.openConversation(conversationId);
     await router.push(`/messages/conversation/${conversationId}`);
+}
+
+function openRecentConversationMenu(event: MouseEvent, conversationId: number) {
+    recentMenu.value = {
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        conversationId,
+    };
+}
+
+function closeRecentConversationMenu() {
+    if (!recentMenu.value.visible) {
+        return;
+    }
+    recentMenu.value = {
+        visible: false,
+        x: 0,
+        y: 0,
+        conversationId: null,
+    };
+}
+
+function hideRecentConversation() {
+    if (recentMenu.value.conversationId === null) {
+        closeRecentConversationMenu();
+        return;
+    }
+    addressBookStore.hideRecentConversation(recentMenu.value.conversationId);
+    closeRecentConversationMenu();
+    ElMessage.success(t("conversation.removedFromRecent"));
 }
 
 async function handleCreateGroup(payload: { name: string; description: string }) {
@@ -303,6 +388,20 @@ async function handleRemoveMember(memberId: number) {
     }
     await groupStore.removeMember(groupStore.currentGroupDetail.id, memberId);
     ElMessage.success(t("conversation.groupMemberRemoved"));
+}
+
+async function handleCreateAgentDialogue(payload: {
+    source_agent_id: number;
+    target_agent_id: number;
+    topic: string;
+    window_seconds: number;
+    soft_message_limit: number;
+    hard_message_limit: number;
+}) {
+    const dialogue = await conversationStore.createAndOpenAgentDialogue(payload);
+    agentDialogueDrawerVisible.value = false;
+    ElMessage.success(t("conversation.agentDialogueCreated"));
+    await router.push(`/messages/conversation/${dialogue.conversation_id}`);
 }
 
 function normalizeMessageStatus(status: string) {
@@ -348,6 +447,16 @@ function conversationDisplayName(item: ConversationListItemApi) {
     return item.display_title;
 }
 
+function conversationKindLabel(type: string) {
+    if (type === "group") {
+        return t("conversation.group");
+    }
+    if (type === "agent_dialogue") {
+        return t("conversation.agentDialogue");
+    }
+    return t("conversation.direct");
+}
+
 function cyclePane() {
     const keys: Array<"recent" | "agents" | "groups"> = ["recent", "agents", "groups"];
     const index = keys.indexOf(activePane.value);
@@ -355,7 +464,7 @@ function cyclePane() {
 }
 
 function formatRelativeTime(value: string) {
-    const date = new Date(value);
+    const date = parseServerDateTime(value);
     const diffMs = Date.now() - date.getTime();
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     if (diffMinutes < 1) {
@@ -473,6 +582,33 @@ function formatRelativeTime(value: string) {
   overflow: auto;
 }
 
+.sidebar__context-menu {
+  position: fixed;
+  z-index: 2000;
+  min-width: 168px;
+  padding: 6px;
+  border: 1px solid #dfdfe3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+}
+
+.sidebar__context-menu-item {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.92rem;
+}
+
+.sidebar__context-menu-item:hover {
+  background: #f4f4f7;
+}
+
 .sidebar__item {
   display: flex;
   align-items: center;
@@ -555,6 +691,10 @@ function formatRelativeTime(value: string) {
 
 .sidebar__conversation-kind--group {
   color: #9a5757;
+}
+
+.sidebar__conversation-kind--agent-dialogue {
+  color: #0d7d73;
 }
 
 .sidebar__meta--recent .sidebar__conversation-kind,
