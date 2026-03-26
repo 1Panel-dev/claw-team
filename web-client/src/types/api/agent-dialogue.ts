@@ -13,9 +13,11 @@ export interface AgentDialogueReadApi {
     source_agent_id: number;
     source_agent_ct_id: string;
     source_agent_display_name: string;
+    source_agent_instance_name?: string | null;
     target_agent_id: number;
     target_agent_ct_id: string;
     target_agent_display_name: string;
+    target_agent_instance_name?: string | null;
     topic: string;
     status: string;
     initiator_type: string;

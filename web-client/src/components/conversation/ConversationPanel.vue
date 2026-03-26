@@ -22,8 +22,11 @@
       :key="conversationStore.currentConversationId ?? 'empty'"
       :messages="messages"
       :loading="loading"
+      :has-more-messages="conversationStore.hasMoreMessages"
+      :loading-older-messages="conversationStore.loadingOlderMessages"
       :show-typing-indicator="showTypingIndicator"
       :sender-meta-map="senderMetaMap"
+      @load-older="handleLoadOlderMessages"
     />
     <MessageComposer
       :sending="sending"
@@ -70,6 +73,15 @@ const title = computed(() => {
     const conversation = conversationStore.currentConversation;
     if (!conversation) {
         return t("conversation.selectConversation");
+    }
+    if (conversation.type === "agent_dialogue" && currentAgentDialogue.value) {
+        const sourceLabel = currentAgentDialogue.value.source_agent_instance_name
+            ? `${currentAgentDialogue.value.source_agent_display_name} / ${currentAgentDialogue.value.source_agent_instance_name}`
+            : currentAgentDialogue.value.source_agent_display_name;
+        const targetLabel = currentAgentDialogue.value.target_agent_instance_name
+            ? `${currentAgentDialogue.value.target_agent_display_name} / ${currentAgentDialogue.value.target_agent_instance_name}`
+            : currentAgentDialogue.value.target_agent_display_name;
+        return `${sourceLabel} ↔ ${targetLabel}`;
     }
     if (conversation.type === "direct" && conversation.direct_instance_id && conversation.direct_agent_id) {
         const instance = addressBookStore.instances.find((item) => item.id === conversation.direct_instance_id);
@@ -160,6 +172,11 @@ async function stopDialogue() {
     }
     await conversationStore.stopCurrentAgentDialogue(currentAgentDialogue.value.id);
 }
+
+async function handleLoadOlderMessages() {
+    await conversationStore.loadOlderMessages();
+}
+
 </script>
 
 <style scoped>

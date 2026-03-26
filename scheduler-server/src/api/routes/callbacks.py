@@ -32,6 +32,7 @@ from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.models.agent_dialogue import AgentDialogue
 from src.services.conversation_events import conversation_event_hub
+from src.services.agent_dialogue_lookup import find_reusable_agent_dialogue
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply, dispatch_agent_dialogue_turn
 from src.services.agent_ct_id import ensure_agent_ct_id
 
@@ -366,29 +367,51 @@ async def receive_send_text(
     ensure_agent_ct_id(source_agent)
     ensure_agent_ct_id(target_agent)
 
-    conversation = Conversation(
-        type="agent_dialogue",
-        title=f"{source_agent.display_name} ↔ {target_agent.display_name}",
+    dialogue = find_reusable_agent_dialogue(
+        db=db,
+        first_agent_id=source_agent.id,
+        second_agent_id=target_agent.id,
     )
-    db.add(conversation)
-    db.flush()
+    if dialogue is None:
+        conversation = Conversation(
+            type="agent_dialogue",
+            title=f"{source_agent.display_name} ↔ {target_agent.display_name}",
+        )
+        db.add(conversation)
+        db.flush()
 
-    dialogue = AgentDialogue(
-        conversation_id=conversation.id,
-        source_agent_id=source_agent.id,
-        target_agent_id=target_agent.id,
-        topic=payload.topic.strip(),
-        status="active",
-        initiator_type="agent",
-        initiator_agent_id=source_agent.id,
-        window_seconds=payload.windowSeconds,
-        soft_message_limit=payload.softMessageLimit,
-        hard_message_limit=payload.hardMessageLimit,
-        soft_limit_warned_at=None,
-        last_speaker_agent_id=source_agent.id,
-    )
-    db.add(dialogue)
-    db.flush()
+        dialogue = AgentDialogue(
+            conversation_id=conversation.id,
+            source_agent_id=source_agent.id,
+            target_agent_id=target_agent.id,
+            topic=payload.topic.strip(),
+            status="active",
+            initiator_type="agent",
+            initiator_agent_id=source_agent.id,
+            window_seconds=payload.windowSeconds,
+            soft_message_limit=payload.softMessageLimit,
+            hard_message_limit=payload.hardMessageLimit,
+            soft_limit_warned_at=None,
+            last_speaker_agent_id=source_agent.id,
+        )
+        db.add(dialogue)
+        db.flush()
+    else:
+        conversation = db.get(Conversation, dialogue.conversation_id)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="conversation not found for reusable agent dialogue")
+        dialogue.source_agent_id = source_agent.id
+        dialogue.target_agent_id = target_agent.id
+        dialogue.topic = payload.topic.strip()
+        dialogue.status = "active"
+        dialogue.initiator_type = "agent"
+        dialogue.initiator_agent_id = source_agent.id
+        dialogue.window_seconds = payload.windowSeconds
+        dialogue.soft_message_limit = payload.softMessageLimit
+        dialogue.hard_message_limit = payload.hardMessageLimit
+        dialogue.soft_limit_warned_at = None
+        dialogue.last_speaker_agent_id = source_agent.id
+        conversation.title = f"{source_agent.display_name} ↔ {target_agent.display_name}"
 
     opening_message = Message(
         id=f"msg_{hashlib.sha1(f'{instance.id}|{source_ct_id}|{target_ct_id}|{payload.topic}|{payload.message}'.encode('utf-8')).hexdigest()[:24]}",

@@ -197,7 +197,13 @@ export async function createMockGroupConversation(groupId: number): Promise<Conv
 
 export async function fetchMockConversationMessages(
     conversationId: number,
-    params?: { messageAfter?: string | null; dispatchAfter?: string | null },
+    params?: {
+        messageAfter?: string | null;
+        dispatchAfter?: string | null;
+        beforeMessageId?: string | null;
+        limit?: number;
+        includeDispatches?: boolean;
+    },
 ): Promise<ConversationMessagesResponseApi> {
     const conversation = conversations.get(conversationId);
     if (!conversation) {
@@ -206,8 +212,19 @@ export async function fetchMockConversationMessages(
     const conversationMessages = messages.get(conversationId) ?? [];
     const conversationDispatches = dispatches.get(conversationId) ?? [];
 
-    const nextMessages = sliceAfterCursor(conversationMessages, params?.messageAfter);
-    const nextDispatches = sliceAfterCursor(conversationDispatches, params?.dispatchAfter);
+    let nextMessages = sliceAfterCursor(conversationMessages, params?.messageAfter);
+    if (params?.beforeMessageId) {
+        const anchorIndex = conversationMessages.findIndex((item) => item.id === params.beforeMessageId);
+        const endIndex = anchorIndex >= 0 ? anchorIndex : conversationMessages.length;
+        const limit = params.limit ?? 100;
+        nextMessages = conversationMessages.slice(Math.max(0, endIndex - limit), endIndex);
+    } else if (params?.limit) {
+        nextMessages = conversationMessages.slice(-params.limit);
+    }
+
+    const nextDispatches = params?.includeDispatches === false
+        ? []
+        : sliceAfterCursor(conversationDispatches, params?.dispatchAfter);
 
     return {
         conversation: structuredClone(conversation),
@@ -215,6 +232,8 @@ export async function fetchMockConversationMessages(
         dispatches: structuredClone(nextDispatches),
         next_message_cursor: conversationMessages.at(-1)?.id ?? null,
         next_dispatch_cursor: conversationDispatches.at(-1)?.id ?? null,
+        has_more_messages: nextMessages.length < conversationMessages.length,
+        oldest_loaded_message_id: nextMessages[0]?.id ?? null,
     };
 }
 

@@ -1,42 +1,80 @@
 <template>
-  <div ref="containerRef" class="message-list">
+  <div ref="containerRef" class="message-list" @scroll="handleScroll">
     <div v-if="loading && !messages.length" class="message-list__empty">
       {{ t("conversation.loadingMessages") }}
     </div>
     <div v-else-if="!messages.length" class="message-list__empty">
       {{ t("conversation.emptyMessages") }}
     </div>
-    <div
-      v-for="message in visibleMessageViews"
-      :key="message.id"
-      class="message-list__item"
-      :class="{
-        'message-list__item--user': message.senderType === 'user',
-        'message-list__item--process': isCompactProcessMessage(message),
-        'message-list__item--speaker-accented': shouldAccentSpeakers && !!speakerColorMap[message.senderLabel],
-      }"
-      :style="speakerStyleFor(message)"
-    >
-      <div class="message-list__meta" :class="{ 'message-list__meta--process': isCompactProcessMessage(message) }">
-        <div class="message-list__meta-main">
-          <span class="message-list__sender">{{ displaySenderLabel(message) }}</span>
-          <span
-            v-if="!isCompactProcessMessage(message) && resolvedSenderMetaMap[message.senderLabel]?.roleName"
-            class="message-list__sender-role"
-          >
-            / {{ resolvedSenderMetaMap[message.senderLabel]?.roleName }}
-          </span>
-          <span
-            v-if="message.source === 'webchat'"
-            class="message-list__source-badge"
-          >
-            {{ t("conversation.sourceWebchat") }}
-          </span>
+    <template v-else>
+      <div
+        v-for="message in visibleMessageViews"
+        :key="message.id"
+        class="message-list__item"
+        :class="{
+          'message-list__item--user': message.senderType === 'user',
+          'message-list__item--process': isCompactProcessMessage(message),
+          'message-list__item--speaker-accented': shouldAccentSpeakers && !!speakerColorMap[message.senderLabel],
+        }"
+        :style="speakerStyleFor(message)"
+      >
+        <div class="message-list__meta" :class="{ 'message-list__meta--process': isCompactProcessMessage(message) }">
+          <div class="message-list__meta-main">
+            <span class="message-list__sender">{{ displaySenderLabel(message) }}</span>
+            <span
+              v-if="!isCompactProcessMessage(message) && resolvedSenderMetaMap[message.senderLabel]?.roleName"
+              class="message-list__sender-role"
+            >
+              / {{ resolvedSenderMetaMap[message.senderLabel]?.roleName }}
+            </span>
+            <span
+              v-if="message.source === 'webchat'"
+              class="message-list__source-badge"
+            >
+              {{ t("conversation.sourceWebchat") }}
+            </span>
+          </div>
+          <div class="message-list__meta-side">
+            <span>{{ formatDateTime(message.updatedAt) }}</span>
+            <ElButton
+              v-if="!isCompactProcessMessage(message)"
+              class="message-list__copy-button"
+              text
+              @click="copyMessage(message)"
+              :title="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
+              :aria-label="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
+            >
+              <el-icon class="message-list__copy-icon" aria-hidden="true">
+                <CopyDocument />
+              </el-icon>
+            </ElButton>
+          </div>
         </div>
-        <div class="message-list__meta-side">
-          <span>{{ formatDateTime(message.updatedAt) }}</span>
+        <div class="message-list__parts">
+          <template v-for="(part, index) in message.parts" :key="`${message.id}-${part.kind}-${index}`">
+            <MessageMarkdown
+              v-if="part.kind === 'markdown' && !shouldHideMarkdownPart(message, part)"
+              class="message-list__content"
+              :content="part.content"
+            />
+            <MessageAttachmentCard
+              v-else-if="part.kind === 'attachment'"
+              :name="part.name"
+              :mime-type="part.mimeType"
+              :url="part.url"
+            />
+            <MessageToolCard
+              v-else-if="part.kind === 'tool_card'"
+              :title="part.title"
+              :status="part.status"
+              :summary="part.summary"
+              :compact="isCompactProcessMessage(message)"
+              :compact-title="compactToolTitle(message, part)"
+            />
+          </template>
+        </div>
+        <div v-if="!isCompactProcessMessage(message)" class="message-list__actions">
           <ElButton
-            v-if="!isCompactProcessMessage(message)"
             class="message-list__copy-button"
             text
             @click="copyMessage(message)"
@@ -49,54 +87,25 @@
           </ElButton>
         </div>
       </div>
-      <div class="message-list__parts">
-        <template v-for="(part, index) in message.parts" :key="`${message.id}-${part.kind}-${index}`">
-          <MessageMarkdown
-            v-if="part.kind === 'markdown' && !shouldHideMarkdownPart(message, part)"
-            class="message-list__content"
-            :content="part.content"
-          />
-          <MessageAttachmentCard
-            v-else-if="part.kind === 'attachment'"
-            :name="part.name"
-            :mime-type="part.mimeType"
-            :url="part.url"
-          />
-          <MessageToolCard
-            v-else-if="part.kind === 'tool_card'"
-            :title="part.title"
-            :status="part.status"
-            :summary="part.summary"
-            :compact="isCompactProcessMessage(message)"
-            :compact-title="compactToolTitle(message, part)"
-          />
-        </template>
+      <div v-if="showTypingIndicator" class="message-list__typing">
+        <span class="message-list__typing-dot" />
+        <span class="message-list__typing-dot" />
+        <span class="message-list__typing-dot" />
+        <span class="message-list__typing-text">{{ t("conversation.replying") }}</span>
       </div>
-      <div v-if="!isCompactProcessMessage(message)" class="message-list__actions">
-        <ElButton
-          class="message-list__copy-button"
-          text
-          @click="copyMessage(message)"
-          :title="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
-          :aria-label="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
-        >
-          <el-icon class="message-list__copy-icon" aria-hidden="true">
-            <CopyDocument />
-          </el-icon>
-        </ElButton>
-      </div>
-    </div>
-    <div v-if="showTypingIndicator" class="message-list__typing">
-      <span class="message-list__typing-dot" />
-      <span class="message-list__typing-dot" />
-      <span class="message-list__typing-dot" />
-      <span class="message-list__typing-text">{{ t("conversation.replying") }}</span>
-    </div>
-    <div ref="bottomRef" class="message-list__bottom-anchor" />
+      <div ref="bottomRef" class="message-list__bottom-anchor" />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
+/**
+ * MessageList 先保持成“稳定聊天列表”。
+ *
+ * 这里暂时不做虚拟滚动和复杂预取状态机，
+ * 只渲染当前 store 已经加载好的消息，并确保进入会话时默认落到底部。
+ * 历史消息只在接近顶部时按页补载，保持实现简单、体验稳定。
+ */
 import { CopyDocument } from "@element-plus/icons-vue";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 
@@ -112,8 +121,13 @@ import { formatServerDateTime } from "@/utils/datetime";
 const props = defineProps<{
     messages: MessageReadApi[];
     loading: boolean;
+    hasMoreMessages?: boolean;
+    loadingOlderMessages?: boolean;
     showTypingIndicator?: boolean;
     senderMetaMap?: Record<string, { roleName?: string | null }>;
+}>();
+const emit = defineEmits<{
+    loadOlder: [];
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -127,6 +141,9 @@ const copiedMessageId = ref<string | null>(null);
 const { locale, t } = useI18n();
 let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const resolvedSenderMetaMap = computed(() => props.senderMetaMap ?? {});
+const pendingOlderAnchor = ref<{ scrollHeight: number; scrollTop: number } | null>(null);
+const waitingOlderRequest = ref(false);
+const OLDER_MESSAGES_TRIGGER_PX = 300;
 const SPEAKER_COLORS = [
     "#c05621",
     "#2b6cb0",
@@ -137,15 +154,14 @@ const SPEAKER_COLORS = [
     "#b45309",
     "#1d4ed8",
 ];
-const scrollTrigger = computed(() => {
+const latestMessageTrigger = computed(() => {
     const lastMessage = props.messages.at(-1);
     return [
         props.loading ? "loading" : "ready",
-        props.messages.length,
-        props.showTypingIndicator ? "typing" : "idle",
         lastMessage?.id ?? "",
         lastMessage?.updated_at ?? "",
         lastMessage?.content ?? "",
+        props.showTypingIndicator ? "typing" : "idle",
     ].join("|");
 });
 
@@ -178,7 +194,14 @@ async function scrollToBottom(behavior: ScrollBehavior = "smooth") {
     }
 }
 
-async function syncScrollPosition() {
+function isNearBottom() {
+    if (!containerRef.value) {
+        return true;
+    }
+    return containerRef.value.scrollHeight - (containerRef.value.scrollTop + containerRef.value.clientHeight) < 160;
+}
+
+async function syncLatestScrollPosition() {
     // 首次进入会话时，消息通常是异步拉取的。
     // 只有等第一批数据真正落地后，才把位置直接定到底部；
     // 后续新增消息或流式更新，再使用平滑滚动。
@@ -191,15 +214,46 @@ async function syncScrollPosition() {
         return;
     }
 
-    await scrollToBottom("smooth");
+    if (isNearBottom()) {
+        await scrollToBottom("smooth");
+    }
 }
 
 watch(
-    scrollTrigger,
+    latestMessageTrigger,
     () => {
-        void syncScrollPosition();
+        if (pendingOlderAnchor.value) {
+            return;
+        }
+        void syncLatestScrollPosition();
     },
     { immediate: true, flush: "post" },
+);
+
+watch(
+    () => props.messages.length,
+    async (currentLength, previousLength) => {
+        if (!pendingOlderAnchor.value || currentLength <= previousLength) {
+            return;
+        }
+        await nextTick();
+        const container = containerRef.value;
+        if (container) {
+            const delta = container.scrollHeight - pendingOlderAnchor.value.scrollHeight;
+            container.scrollTop = pendingOlderAnchor.value.scrollTop + delta;
+        }
+        pendingOlderAnchor.value = null;
+        waitingOlderRequest.value = false;
+    },
+);
+
+watch(
+    () => props.loadingOlderMessages,
+    (loadingOlderMessages) => {
+        if (!loadingOlderMessages && waitingOlderRequest.value && !pendingOlderAnchor.value) {
+            waitingOlderRequest.value = false;
+        }
+    },
 );
 
 function formatDateTime(value: string) {
@@ -302,6 +356,30 @@ async function copyMessage(message: MessageView) {
         copiedMessageId.value = null;
         copiedResetTimer = null;
     }, 1800);
+}
+
+function requestOlderMessages() {
+    if (!props.hasMoreMessages || props.loadingOlderMessages || waitingOlderRequest.value || !containerRef.value) {
+        return;
+    }
+    // 加载更早消息前记住当前滚动高度和位置，等 prepend 完成后把视角稳回原地。
+    pendingOlderAnchor.value = {
+        scrollHeight: containerRef.value.scrollHeight,
+        scrollTop: containerRef.value.scrollTop,
+    };
+    waitingOlderRequest.value = true;
+    emit("loadOlder");
+}
+
+function handleScroll() {
+    if (!containerRef.value || pendingOlderAnchor.value) {
+        return;
+    }
+    // 比“碰到顶部再加载”稍早一点触发，减少用户撞到边界的感觉，
+    // 但仍然保持逻辑简单，不重新引入复杂预取状态机。
+    if (containerRef.value.scrollTop <= OLDER_MESSAGES_TRIGGER_PX) {
+        requestOlderMessages();
+    }
 }
 
 onBeforeUnmount(() => {

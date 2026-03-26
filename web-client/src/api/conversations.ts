@@ -27,12 +27,21 @@ export async function createGroupConversation(groupId: number): Promise<Conversa
 
 export async function fetchConversationMessages(
     conversationId: number,
-    params?: { messageAfter?: string | null; dispatchAfter?: string | null },
+    params?: {
+        messageAfter?: string | null;
+        dispatchAfter?: string | null;
+        beforeMessageId?: string | null;
+        limit?: number;
+        includeDispatches?: boolean;
+    },
 ): Promise<ConversationMessagesResponseApi> {
     const response = await apiClient.get<ConversationMessagesResponseApi>(`/api/conversations/${conversationId}/messages`, {
         params: {
             messageAfter: params?.messageAfter ?? undefined,
             dispatchAfter: params?.dispatchAfter ?? undefined,
+            beforeMessageId: params?.beforeMessageId ?? undefined,
+            limit: params?.limit ?? undefined,
+            includeDispatches: params?.includeDispatches ?? undefined,
         },
     });
     return response.data;

@@ -25,6 +25,9 @@ import { useAddressBookStore } from "@/stores/addressBook";
 import type { ConversationReadApi, DispatchReadApi, MessageReadApi } from "@/types/api/conversation";
 import type { AgentDialogueReadApi } from "@/types/api/agent-dialogue";
 
+const CONVERSATION_INITIAL_PAGE_SIZE = 100;
+const CONVERSATION_HISTORY_PAGE_SIZE = 100;
+
 function mergeById<T extends { id: string }>(base: T[], incoming: T[]): T[] {
     const map = new Map<string, T>();
     for (const item of base) {
@@ -45,6 +48,9 @@ export const useConversationStore = defineStore("conversation", {
         dispatches: [] as DispatchReadApi[],
         nextMessageCursor: null as string | null,
         nextDispatchCursor: null as string | null,
+        oldestLoadedMessageId: null as string | null,
+        hasMoreMessages: false,
+        loadingOlderMessages: false,
         loading: false,
         sending: false,
         lastErrorMessage: null as string | null,
@@ -85,6 +91,9 @@ export const useConversationStore = defineStore("conversation", {
             this.dispatches = [];
             this.nextMessageCursor = null;
             this.nextDispatchCursor = null;
+            this.oldestLoadedMessageId = null;
+            this.hasMoreMessages = false;
+            this.loadingOlderMessages = false;
             this.lastErrorMessage = null;
             await this.reloadCurrentConversation();
         },
@@ -96,7 +105,10 @@ export const useConversationStore = defineStore("conversation", {
             try {
                 const payload = isMessageMockEnabled()
                     ? await fetchMockConversationMessages(this.currentConversationId)
-                    : await fetchConversationMessages(this.currentConversationId);
+                    : await fetchConversationMessages(this.currentConversationId, {
+                        limit: CONVERSATION_INITIAL_PAGE_SIZE,
+                        includeDispatches: true,
+                    });
                 this.currentConversation = payload.conversation;
                 this.currentAgentDialogue = payload.conversation.agent_dialogue_id
                     ? await fetchAgentDialogue(payload.conversation.agent_dialogue_id)
@@ -105,6 +117,8 @@ export const useConversationStore = defineStore("conversation", {
                 this.dispatches = payload.dispatches;
                 this.nextMessageCursor = payload.next_message_cursor;
                 this.nextDispatchCursor = payload.next_dispatch_cursor;
+                this.oldestLoadedMessageId = payload.oldest_loaded_message_id;
+                this.hasMoreMessages = payload.has_more_messages;
                 this.lastErrorMessage = null;
             } catch (error) {
                 this.lastErrorMessage = error instanceof Error ? error.message : "加载会话失败";
@@ -124,8 +138,8 @@ export const useConversationStore = defineStore("conversation", {
                         dispatchAfter: this.nextDispatchCursor,
                     })
                     : await fetchConversationMessages(this.currentConversationId, {
-                        messageAfter: this.nextMessageCursor,
-                        dispatchAfter: this.nextDispatchCursor,
+                        limit: CONVERSATION_INITIAL_PAGE_SIZE,
+                        includeDispatches: true,
                     });
                 this.currentConversation = payload.conversation;
                 this.currentAgentDialogue = payload.conversation.agent_dialogue_id
@@ -135,9 +149,36 @@ export const useConversationStore = defineStore("conversation", {
                 this.dispatches = mergeById(this.dispatches, payload.dispatches);
                 this.nextMessageCursor = payload.next_message_cursor;
                 this.nextDispatchCursor = payload.next_dispatch_cursor;
+                if (!this.oldestLoadedMessageId) {
+                    this.oldestLoadedMessageId = payload.oldest_loaded_message_id;
+                }
+                this.hasMoreMessages = payload.has_more_messages || this.hasMoreMessages;
                 this.lastErrorMessage = null;
             } catch (error) {
                 this.lastErrorMessage = error instanceof Error ? error.message : "轮询会话失败";
+            }
+        },
+        async loadOlderMessages() {
+            if (!this.currentConversationId || !this.oldestLoadedMessageId || !this.hasMoreMessages || this.loadingOlderMessages) {
+                return [];
+            }
+            this.loadingOlderMessages = true;
+            try {
+                const payload = await fetchConversationMessages(this.currentConversationId, {
+                    beforeMessageId: this.oldestLoadedMessageId,
+                    limit: CONVERSATION_HISTORY_PAGE_SIZE,
+                    includeDispatches: false,
+                });
+                this.messages = mergeById(payload.messages, this.messages);
+                this.oldestLoadedMessageId = payload.oldest_loaded_message_id;
+                this.hasMoreMessages = payload.has_more_messages;
+                this.lastErrorMessage = null;
+                return payload.messages;
+            } catch (error) {
+                this.lastErrorMessage = error instanceof Error ? error.message : "加载更早消息失败";
+                throw error;
+            } finally {
+                this.loadingOlderMessages = false;
             }
         },
         async sendMessage(content: string, mentions: string[] = [], useDedicatedDirectSession = false) {

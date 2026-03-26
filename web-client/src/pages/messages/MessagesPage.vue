@@ -28,7 +28,7 @@
  * 它尽量只承担页面级组织职责，
  * 真正的数据拉取、轮询和状态管理都放在 store / composable 中。
  */
-import { onMounted, ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useRouter } from "vue-router";
 
@@ -48,6 +48,7 @@ const addressBookStore = useAddressBookStore();
 const groupStore = useGroupStore();
 const transport = useConversationTransport();
 const initialized = ref(false);
+const recentRefreshTimer = ref<number | null>(null);
 const { t } = useI18n();
 
 onMounted(async () => {
@@ -56,10 +57,15 @@ onMounted(async () => {
             await addressBookStore.loadAll();
         }
         initialized.value = true;
+        startRecentConversationPolling();
         await handleRouteConversation(route.params.conversationId);
     } catch (error) {
         console.error("failed to initialize messages page", error);
     }
+});
+
+onBeforeUnmount(() => {
+    stopRecentConversationPolling();
 });
 
 watch(
@@ -122,6 +128,22 @@ async function ensureConversationSelection() {
             await conversationStore.openConversation(targetConversationId);
         }
         await router.replace(`/messages/conversation/${targetConversationId}`);
+    }
+}
+
+function startRecentConversationPolling(intervalMs = 5000) {
+    stopRecentConversationPolling();
+    // 当前会话的刷新由 transport 负责；这里专门兜底“其他地方新建了会话”的情况，
+    // 让最近联系人能自动浮出最新的 direct / group / agent_dialogue。
+    recentRefreshTimer.value = window.setInterval(() => {
+        void addressBookStore.refreshRecentConversations();
+    }, intervalMs);
+}
+
+function stopRecentConversationPolling() {
+    if (recentRefreshTimer.value !== null) {
+        window.clearInterval(recentRefreshTimer.value);
+        recentRefreshTimer.value = null;
     }
 }
 </script>

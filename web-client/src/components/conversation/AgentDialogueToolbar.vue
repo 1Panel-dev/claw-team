@@ -2,8 +2,6 @@
   <div class="dialogue-toolbar">
     <div class="dialogue-toolbar__meta">
       <div class="dialogue-toolbar__line">
-        <span class="dialogue-toolbar__status">{{ statusLabel }}</span>
-        <span class="dialogue-toolbar__divider">·</span>
         <span>
           {{ t("conversation.agentDialoguePair", {
               source: dialogue.source_agent_display_name,
@@ -79,19 +77,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const statusLabel = computed(() => {
-    if (props.dialogue.status === "active") {
-        return t("conversation.agentDialogueActive");
-    }
-    if (props.dialogue.status === "paused") {
-        return t("conversation.agentDialoguePaused");
-    }
-    if (props.dialogue.status === "completed") {
-        return t("conversation.agentDialogueCompleted");
-    }
-    return t("conversation.agentDialogueStopped");
-});
-
 const windowMinutes = computed(() => Math.max(1, Math.round(props.dialogue.window_seconds / 60)));
 
 const recentMessageCount = computed(() => {
@@ -146,12 +131,6 @@ const currentPartnerLabel = computed(() => {
   gap: 6px;
   font-size: 0.78rem;
   color: var(--color-text-secondary);
-}
-
-.dialogue-toolbar__status {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #0d7d73;
 }
 
 .dialogue-toolbar__divider {

@@ -19,7 +19,9 @@ from src.models.agent_dialogue import AgentDialogue
 from src.models.agent_profile import AgentProfile
 from src.models.conversation import Conversation
 from src.models.message import Message
+from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.agent_dialogue import AgentDialogueCreate, AgentDialogueMessageCreate, AgentDialogueRead
+from src.services.agent_dialogue_lookup import find_reusable_agent_dialogue
 from src.services.agent_dialogue_runner import (
     dispatch_agent_dialogue_intervention,
     dispatch_agent_dialogue_opening_turn,
@@ -36,6 +38,8 @@ def serialize_agent_dialogue(db: Session, dialogue: AgentDialogue) -> AgentDialo
     target_agent = db.get(AgentProfile, dialogue.target_agent_id)
     if not source_agent or not target_agent:
         raise HTTPException(status_code=404, detail="source or target agent not found")
+    source_instance = db.get(OpenClawInstance, source_agent.instance_id)
+    target_instance = db.get(OpenClawInstance, target_agent.instance_id)
 
     ensure_agent_ct_id(source_agent)
     ensure_agent_ct_id(target_agent)
@@ -54,9 +58,11 @@ def serialize_agent_dialogue(db: Session, dialogue: AgentDialogue) -> AgentDialo
         source_agent_id=dialogue.source_agent_id,
         source_agent_ct_id=source_agent.ct_id or "",
         source_agent_display_name=source_agent.display_name,
+        source_agent_instance_name=(source_instance.name if source_instance else None),
         target_agent_id=dialogue.target_agent_id,
         target_agent_ct_id=target_agent.ct_id or "",
         target_agent_display_name=target_agent.display_name,
+        target_agent_instance_name=(target_instance.name if target_instance else None),
         topic=dialogue.topic,
         status=dialogue.status,
         initiator_type=dialogue.initiator_type,
@@ -85,27 +91,51 @@ async def create_agent_dialogue(payload: AgentDialogueCreate, db: Session = Depe
     if source_agent.id == target_agent.id:
         raise HTTPException(status_code=400, detail="source and target agent must be different")
 
-    conversation = Conversation(
-        type="agent_dialogue",
-        title=f"{source_agent.display_name} ↔ {target_agent.display_name}",
+    dialogue = find_reusable_agent_dialogue(
+        db=db,
+        first_agent_id=source_agent.id,
+        second_agent_id=target_agent.id,
     )
-    db.add(conversation)
-    db.flush()
+    if dialogue is None:
+        conversation = Conversation(
+            type="agent_dialogue",
+            title=f"{source_agent.display_name} ↔ {target_agent.display_name}",
+        )
+        db.add(conversation)
+        db.flush()
 
-    dialogue = AgentDialogue(
-        conversation_id=conversation.id,
-        source_agent_id=source_agent.id,
-        target_agent_id=target_agent.id,
-        topic=payload.topic.strip(),
-        status="active",
-        initiator_type="user",
-        window_seconds=payload.window_seconds,
-        soft_message_limit=payload.soft_message_limit,
-        hard_message_limit=payload.hard_message_limit,
-        soft_limit_warned_at=None,
-        last_speaker_agent_id=None,
-    )
-    db.add(dialogue)
+        dialogue = AgentDialogue(
+            conversation_id=conversation.id,
+            source_agent_id=source_agent.id,
+            target_agent_id=target_agent.id,
+            topic=payload.topic.strip(),
+            status="active",
+            initiator_type="user",
+            window_seconds=payload.window_seconds,
+            soft_message_limit=payload.soft_message_limit,
+            hard_message_limit=payload.hard_message_limit,
+            soft_limit_warned_at=None,
+            last_speaker_agent_id=None,
+        )
+        db.add(dialogue)
+    else:
+        conversation = db.get(Conversation, dialogue.conversation_id)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="conversation not found for reusable agent dialogue")
+        # 同一对参与者复用一条对话，但本轮的“谁先发起、找谁协作”仍然要刷新。
+        dialogue.source_agent_id = source_agent.id
+        dialogue.target_agent_id = target_agent.id
+        dialogue.topic = payload.topic.strip()
+        dialogue.status = "active"
+        dialogue.initiator_type = "user"
+        dialogue.initiator_agent_id = None
+        dialogue.window_seconds = payload.window_seconds
+        dialogue.soft_message_limit = payload.soft_message_limit
+        dialogue.hard_message_limit = payload.hard_message_limit
+        dialogue.soft_limit_warned_at = None
+        dialogue.last_speaker_agent_id = None
+        conversation.title = f"{source_agent.display_name} ↔ {target_agent.display_name}"
+
     opening_message = Message(
         id=f"msg_{uuid.uuid4().hex[:24]}",
         conversation_id=conversation.id,

@@ -37,9 +37,11 @@ class AgentDialogueRead(TimestampedModel):
     source_agent_id: int
     source_agent_ct_id: str
     source_agent_display_name: str
+    source_agent_instance_name: str | None = None
     target_agent_id: int
     target_agent_ct_id: str
     target_agent_display_name: str
+    target_agent_instance_name: str | None = None
     topic: str
     status: str
     initiator_type: str

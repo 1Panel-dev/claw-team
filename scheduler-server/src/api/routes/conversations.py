@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
@@ -33,6 +33,7 @@ from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.services.agent_dialogue_lookup import build_agent_dialogue_pair_key
 from src.services.conversation_events import conversation_event_hub
 from src.services.local_agent_mock import simulate_local_agent_reply
 from src.schemas.common import validate_orm
@@ -59,7 +60,7 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
     # 第一阶段先用简单可读的方式拼装数据，优先保证前端可直接消费。
     conversations = list(db.scalars(select(Conversation).order_by(Conversation.updated_at.desc(), Conversation.id.desc())))
 
-    items: list[ConversationListItem] = []
+    items: list[tuple[ConversationListItem, tuple[int, int] | None]] = []
     for conversation in conversations:
         last_message = db.scalar(
             select(Message)
@@ -77,7 +78,17 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
             display_title = conversation.title or (group.name if group else f"群聊 {conversation.id}")
         elif conversation.type == "agent_dialogue":
             if source_agent and target_agent:
-                display_title = f"{source_agent.display_name} ↔ {target_agent.display_name}"
+                source_instance = db.get(OpenClawInstance, source_agent.instance_id)
+                target_instance = db.get(OpenClawInstance, target_agent.instance_id)
+                source_label = (
+                    f"{source_agent.display_name} / {source_instance.name}"
+                    if source_instance else source_agent.display_name
+                )
+                target_label = (
+                    f"{target_agent.display_name} / {target_instance.name}"
+                    if target_instance else target_agent.display_name
+                )
+                display_title = f"{source_label} ↔ {target_label}"
             else:
                 display_title = conversation.title or f"Agent 对话 {conversation.id}"
         else:
@@ -93,8 +104,15 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
             if len(preview) > 80:
                 preview = f"{preview[:80]}..."
 
+        pair_key = (
+            build_agent_dialogue_pair_key(source_agent.id, target_agent.id)
+            if conversation.type == "agent_dialogue" and source_agent and target_agent
+            else None
+        )
+
         items.append(
-            ConversationListItem(
+            (
+                ConversationListItem(
                 id=conversation.id,
                 type=conversation.type,
                 title=conversation.title,
@@ -119,12 +137,23 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
                 last_message_sender_label=last_message.sender_label if last_message else None,
                 last_message_at=last_message.created_at.isoformat() if last_message else None,
                 last_message_status=last_message.status if last_message else None,
+                ),
+                pair_key,
             )
         )
 
     # 这里按最后一条消息时间优先排序；如果还没有消息，就回退到会话自身创建时间。
-    items.sort(key=lambda item: item.last_message_at or item.created_at.isoformat(), reverse=True)
-    return items
+    items.sort(key=lambda item: item[0].last_message_at or item[0].created_at.isoformat(), reverse=True)
+
+    deduped_items: list[ConversationListItem] = []
+    seen_agent_dialogue_pairs: set[tuple[int, int]] = set()
+    for item, pair_key in items:
+        if pair_key is not None:
+            if pair_key in seen_agent_dialogue_pairs:
+                continue
+            seen_agent_dialogue_pairs.add(pair_key)
+        deduped_items.append(item)
+    return deduped_items
 
 
 @router.post("/direct", response_model=ConversationRead)
@@ -178,6 +207,9 @@ def list_conversation_messages(
     conversation_id: int,
     message_after: str | None = Query(default=None, alias="messageAfter"),
     dispatch_after: str | None = Query(default=None, alias="dispatchAfter"),
+    before_message_id: str | None = Query(default=None, alias="beforeMessageId"),
+    limit: int = Query(default=100, ge=1, le=200),
+    include_dispatches: bool = Query(default=True, alias="includeDispatches"),
     db: Session = Depends(db_session),
 ) -> ConversationMessagesResponse:
     # 第一阶段先提供“最小增量拉取”：
@@ -190,33 +222,26 @@ def list_conversation_messages(
 
     _finalize_stale_dispatches(db=db, conversation_id=conversation_id)
 
-    # 这里原来尝试用 messageAfter / dispatchAfter 做“只拉新增项”的增量同步，
-    # 但真实聊天里 assistant 消息会被 reply.chunk 持续更新同一条记录。
-    #
-    # 例如：
-    # 1. 先创建一条 agent message，内容只有第一段。
-    # 2. 后续 chunk / final 继续更新这条消息的 content 和 updated_at。
-    #
-    # 这时如果只按“创建时间比 cursor 新”来查，就拿不到同一条消息后续的更新，
-    # 前端就会停留在第一段内容。
-    #
-    # 第一阶段先选择更稳的策略：每次返回当前会话的完整消息和 dispatch 列表，
-    # 前端再按 id 做 merge。会话量不大时，这个方案最简单也最可靠。
-    #
-    # 后面如果消息规模明显上来，再把 cursor 升级成包含 updated_at 的真正增量 token。
-    messages = list(
-        db.scalars(
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at, Message.id)
-        )
+    # 当前消息接口同时承担三种读取模式：
+    # 1. 初次进入会话：拿最近一页消息。
+    # 2. 往上翻历史：按 beforeMessageId 继续拿更早一页。
+    # 3. 轮询最新变化：messageAfter 保留给后续更精细的增量模式；当前前端会直接重新拉最近一页。
+    messages, has_more_messages = _load_conversation_messages(
+        db=db,
+        conversation_id=conversation_id,
+        before_message_id=before_message_id,
+        limit=limit,
     )
-    dispatches = list(
-        db.scalars(
-            select(MessageDispatch)
-            .where(MessageDispatch.conversation_id == conversation_id)
-            .order_by(MessageDispatch.created_at, MessageDispatch.id)
+    dispatches = (
+        list(
+            db.scalars(
+                select(MessageDispatch)
+                .where(MessageDispatch.conversation_id == conversation_id)
+                .order_by(MessageDispatch.created_at, MessageDispatch.id)
+            )
         )
+        if include_dispatches
+        else []
     )
     return ConversationMessagesResponse(
         conversation=ConversationRead(
@@ -234,7 +259,48 @@ def list_conversation_messages(
         dispatches=[validate_orm(DispatchRead, item) for item in dispatches],
         next_message_cursor=messages[-1].id if messages else message_after,
         next_dispatch_cursor=dispatches[-1].id if dispatches else dispatch_after,
+        has_more_messages=has_more_messages,
+        oldest_loaded_message_id=messages[0].id if messages else before_message_id,
     )
+
+
+def _load_conversation_messages(
+    *,
+    db: Session,
+    conversation_id: int,
+    before_message_id: str | None,
+    limit: int,
+) -> tuple[list[Message], bool]:
+    if before_message_id:
+        anchor = db.get(Message, before_message_id)
+        if not anchor or anchor.conversation_id != conversation_id:
+            raise HTTPException(status_code=404, detail="before message not found")
+        query = (
+            select(Message)
+            .where(
+                Message.conversation_id == conversation_id,
+                or_(
+                    Message.created_at < anchor.created_at,
+                    and_(Message.created_at == anchor.created_at, Message.id < anchor.id),
+                ),
+            )
+            .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(limit + 1)
+        )
+    else:
+        query = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(limit + 1)
+        )
+
+    rows = list(db.scalars(query))
+    has_more_messages = len(rows) > limit
+    if has_more_messages:
+        rows = rows[:limit]
+    rows.reverse()
+    return rows, has_more_messages
 
 
 def _finalize_stale_dispatches(db: Session, conversation_id: int) -> None:

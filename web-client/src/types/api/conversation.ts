@@ -93,4 +93,6 @@ export interface ConversationMessagesResponseApi {
     dispatches: DispatchReadApi[];
     next_message_cursor: string | null;
     next_dispatch_cursor: string | null;
+    has_more_messages: boolean;
+    oldest_loaded_message_id: string | null;
 }

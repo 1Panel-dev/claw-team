@@ -284,6 +284,134 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertEqual(first_dispatch.dispatch_mode, "agent_dialogue_opening")
             self.assertEqual(first_dispatch.status, "accepted")
 
+    def test_create_agent_dialogue_reuses_existing_conversation_for_same_pair(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="liaotian",
+                display_name="liaotian",
+                role_name="聊天专家",
+                enabled=True,
+            )
+            target_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="weather",
+                display_name="weather",
+                role_name="天气助手",
+                enabled=True,
+            )
+            db.add_all([source_agent, target_agent])
+            db.commit()
+            source_agent_id = source_agent.id
+            target_agent_id = target_agent.id
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-agent-dialogue"})):
+            first = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_agent_id": source_agent_id,
+                    "target_agent_id": target_agent_id,
+                    "topic": "第一次讨论",
+                },
+            )
+            second = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_agent_id": source_agent_id,
+                    "target_agent_id": target_agent_id,
+                    "topic": "第二次讨论",
+                },
+            )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        first_payload = first.json()
+        second_payload = second.json()
+        self.assertEqual(first_payload["id"], second_payload["id"])
+        self.assertEqual(first_payload["conversation_id"], second_payload["conversation_id"])
+
+        with self.SessionLocal() as db:
+            conversations = list(db.scalars(select(Conversation).where(Conversation.type == "agent_dialogue")))
+            self.assertEqual(len(conversations), 1)
+            messages = list(
+                db.scalars(
+                    select(Message)
+                    .where(Message.conversation_id == first_payload["conversation_id"])
+                    .order_by(Message.created_at, Message.id)
+                )
+            )
+            self.assertEqual([item.content for item in messages[:2]], ["第一次讨论", "第二次讨论"])
+
+    def test_create_agent_dialogue_reuses_existing_conversation_for_reversed_pair(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            first_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="liaotian",
+                display_name="liaotian",
+                role_name="聊天专家",
+                enabled=True,
+            )
+            second_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="weather",
+                display_name="weather",
+                role_name="天气助手",
+                enabled=True,
+            )
+            db.add_all([first_agent, second_agent])
+            db.commit()
+            first_agent_id = first_agent.id
+            second_agent_id = second_agent.id
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-agent-dialogue"})):
+            first = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_agent_id": first_agent_id,
+                    "target_agent_id": second_agent_id,
+                    "topic": "正向讨论",
+                },
+            )
+            second = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_agent_id": second_agent_id,
+                    "target_agent_id": first_agent_id,
+                    "topic": "反向继续",
+                },
+            )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        first_payload = first.json()
+        second_payload = second.json()
+        self.assertEqual(first_payload["id"], second_payload["id"])
+        self.assertEqual(first_payload["conversation_id"], second_payload["conversation_id"])
+        self.assertEqual(second_payload["source_agent_id"], second_agent_id)
+        self.assertEqual(second_payload["target_agent_id"], first_agent_id)
+
     def test_agent_dialogue_control_endpoints_update_status(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(
@@ -914,11 +1042,95 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         dialogue_item = next(item for item in payload if item["type"] == "agent_dialogue")
-        self.assertEqual(dialogue_item["display_title"], "liaotian ↔ weather")
+        self.assertEqual(dialogue_item["display_title"], "liaotian / OpenClaw A ↔ weather / OpenClaw A")
         self.assertEqual(dialogue_item["dialogue_status"], "active")
         self.assertEqual(dialogue_item["dialogue_window_seconds"], 300)
         self.assertEqual(dialogue_item["dialogue_soft_message_limit"], 12)
         self.assertEqual(dialogue_item["dialogue_hard_message_limit"], 20)
+
+    def test_list_conversations_deduplicates_agent_dialogues_by_participants(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            first_agent = AgentProfile(instance_id=instance.id, agent_key="a", display_name="liaotian", role_name=None, enabled=True)
+            second_agent = AgentProfile(instance_id=instance.id, agent_key="b", display_name="TestBot2", role_name=None, enabled=True)
+            db.add_all([first_agent, second_agent])
+            db.flush()
+
+            old_conversation = Conversation(type="agent_dialogue", title="old")
+            new_conversation = Conversation(type="agent_dialogue", title="new")
+            db.add_all([old_conversation, new_conversation])
+            db.flush()
+
+            db.add_all(
+                [
+                    AgentDialogue(
+                        conversation_id=old_conversation.id,
+                        source_agent_id=first_agent.id,
+                        target_agent_id=second_agent.id,
+                        topic="旧会话",
+                        status="completed",
+                        initiator_type="user",
+                        window_seconds=300,
+                        soft_message_limit=12,
+                        hard_message_limit=20,
+                        soft_limit_warned_at=None,
+                        last_speaker_agent_id=first_agent.id,
+                    ),
+                    AgentDialogue(
+                        conversation_id=new_conversation.id,
+                        source_agent_id=second_agent.id,
+                        target_agent_id=first_agent.id,
+                        topic="新会话",
+                        status="active",
+                        initiator_type="user",
+                        window_seconds=300,
+                        soft_message_limit=12,
+                        hard_message_limit=20,
+                        soft_limit_warned_at=None,
+                        last_speaker_agent_id=second_agent.id,
+                    ),
+                ]
+            )
+            db.flush()
+
+            db.add_all(
+                [
+                    Message(
+                        id="msg_old_dialogue",
+                        conversation_id=old_conversation.id,
+                        sender_type="agent",
+                        sender_label="liaotian",
+                        content="旧消息",
+                        status="completed",
+                    ),
+                    Message(
+                        id="msg_new_dialogue",
+                        conversation_id=new_conversation.id,
+                        sender_type="agent",
+                        sender_label="TestBot2",
+                        content="新消息",
+                        status="completed",
+                    ),
+                ]
+            )
+            db.commit()
+
+        response = self.client.get("/api/conversations")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        dialogue_items = [item for item in payload if item["type"] == "agent_dialogue"]
+        self.assertEqual(len(dialogue_items), 1)
+        self.assertEqual(dialogue_items[0]["last_message_preview"], "新消息")
 
     def test_list_conversation_messages_supports_incremental_polling(self) -> None:
         """
@@ -1021,6 +1233,115 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(incremental_payload["next_message_cursor"], "msg_002")
         self.assertEqual(incremental_payload["next_dispatch_cursor"], "dsp_002")
         self.assertEqual(incremental_payload["messages"][1]["parts"][0]["kind"], "markdown")
+
+    def test_list_conversation_messages_returns_recent_page_by_default(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw A / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            for index in range(1, 6):
+                db.add(
+                    Message(
+                        id=f"msg_{index:03d}",
+                        conversation_id=conversation.id,
+                        sender_type="user",
+                        sender_label="User",
+                        content=f"message {index}",
+                        status="completed",
+                    )
+                )
+            db.commit()
+            conversation_id = conversation.id
+
+        response = self.client.get(f"/api/conversations/{conversation_id}/messages?limit=2")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual([item["id"] for item in payload["messages"]], ["msg_004", "msg_005"])
+        self.assertTrue(payload["has_more_messages"])
+        self.assertEqual(payload["oldest_loaded_message_id"], "msg_004")
+
+    def test_list_conversation_messages_can_load_older_page(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw A / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            for index in range(1, 6):
+                db.add(
+                    Message(
+                        id=f"msg_{index:03d}",
+                        conversation_id=conversation.id,
+                        sender_type="user",
+                        sender_label="User",
+                        content=f"message {index}",
+                        status="completed",
+                    )
+                )
+            db.commit()
+            conversation_id = conversation.id
+
+        response = self.client.get(
+            f"/api/conversations/{conversation_id}/messages?limit=2&beforeMessageId=msg_004&includeDispatches=false"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual([item["id"] for item in payload["messages"]], ["msg_002", "msg_003"])
+        self.assertTrue(payload["has_more_messages"])
+        self.assertEqual(payload["oldest_loaded_message_id"], "msg_002")
+        self.assertEqual(payload["dispatches"], [])
 
     def test_message_response_exposes_attachment_parts(self) -> None:
         """

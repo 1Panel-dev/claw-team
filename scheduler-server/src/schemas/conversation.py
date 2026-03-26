@@ -124,6 +124,8 @@ class ConversationMessagesResponse(BaseModel):
     dispatches: list[DispatchRead]
     next_message_cursor: str | None
     next_dispatch_cursor: str | None
+    has_more_messages: bool = False
+    oldest_loaded_message_id: str | None = None
 
 
 _PART_PATTERN = re.compile(r"\[\[(attachment|tool):([^|\]]+)\|([^|\]]*)\|([^\]]+)\]\]")
