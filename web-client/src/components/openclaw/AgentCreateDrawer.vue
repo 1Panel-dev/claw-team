@@ -12,6 +12,25 @@
       </p>
 
       <el-form label-position="top">
+        <el-form-item v-if="!isEditMode" :label="t('openclaw.agentTemplate')">
+          <el-select
+            v-model="selectedTemplateKey"
+            class="agent-template-select"
+            :placeholder="t('openclaw.agentTemplatePlaceholder')"
+            @change="applySelectedTemplate"
+          >
+            <el-option
+              v-for="template in agentTemplateOptions"
+              :key="template.value"
+              :label="template.label"
+              :value="template.value"
+            />
+          </el-select>
+          <p class="drawer-body__hint drawer-body__hint--compact">
+            {{ t("openclaw.agentTemplateHint") }}
+          </p>
+        </el-form-item>
+
         <el-form-item :label="t('openclaw.agentKey')">
           <el-input
             v-model="form.agent_key"
@@ -106,8 +125,9 @@
  * 4. 编辑模式下只有显式点开某个文件的编辑按钮，才允许修改该文件。
  */
 import { ArrowDown, EditPen } from "@element-plus/icons-vue";
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "@/composables/useI18n";
+import { AGENT_TEMPLATES } from "@/constants/agentTemplates";
 
 type AgentDrawerCreatePayload = {
     mode: "create";
@@ -193,6 +213,7 @@ const form = reactive({
     user_md: "",
     memory_md: "",
 });
+const selectedTemplateKey = ref("blank");
 
 const fileExpandedState = reactive<Record<FileFieldKey, boolean>>({
     identity_md: false,
@@ -223,6 +244,12 @@ const initialFileValues = reactive<Record<FileFieldKey, string>>({
 });
 
 const isEditMode = computed(() => props.mode === "edit");
+const agentTemplateOptions = computed(() =>
+    AGENT_TEMPLATES.map((template) => ({
+        value: template.key,
+        label: t(template.labelKey),
+    })),
+);
 const drawerTitle = computed(() =>
     isEditMode.value
         ? t("openclaw.agentDrawerEditTitle", { name: props.instanceName })
@@ -241,6 +268,50 @@ function resetForm() {
     form.soul_md = "";
     form.user_md = "";
     form.memory_md = "";
+}
+
+function applyTemplate(templateKey: string) {
+    const template = AGENT_TEMPLATES.find((item) => item.key === templateKey);
+    if (!template) {
+        return;
+    }
+
+    form.agent_key = template.agent_key;
+    form.display_name = template.display_name;
+    form.role_name = template.role_name;
+    form.identity_md = template.identity_md;
+    form.soul_md = template.soul_md;
+    form.user_md = template.user_md;
+    form.memory_md = template.memory_md;
+}
+
+function hasCreateFormContent() {
+    return Boolean(
+        form.agent_key.trim()
+        || form.display_name.trim()
+        || form.role_name.trim()
+        || form.identity_md.trim()
+        || form.soul_md.trim()
+        || form.user_md.trim()
+        || form.memory_md.trim(),
+    );
+}
+
+function applySelectedTemplate() {
+    if (isEditMode.value) {
+        return;
+    }
+
+    const templateKey = selectedTemplateKey.value;
+    if (templateKey !== "blank" && hasCreateFormContent()) {
+        const shouldOverwrite = window.confirm(t("openclaw.agentTemplateOverwriteConfirm"));
+        if (!shouldOverwrite) {
+            selectedTemplateKey.value = "blank";
+            return;
+        }
+    }
+
+    applyTemplate(templateKey);
 }
 
 function resetFileUiState() {
@@ -298,6 +369,7 @@ watch(
 
         resetForm();
         resetFileUiState();
+        selectedTemplateKey.value = "blank";
     },
     { immediate: true },
 );
@@ -362,6 +434,15 @@ function submit() {
   margin: 0;
   color: var(--color-text-secondary);
   line-height: 1.7;
+}
+
+.drawer-body__hint--compact {
+  margin-top: 8px;
+  font-size: 0.88rem;
+}
+
+.agent-template-select {
+  width: 100%;
 }
 
 .drawer-actions {
