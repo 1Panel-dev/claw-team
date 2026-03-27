@@ -8,20 +8,21 @@ from pydantic import BaseModel, Field
 from src.schemas.common import TimestampedModel
 
 
+class GroupMemberAddItem(BaseModel):
+    instance_id: int
+    agent_id: int
+
+
 class GroupCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = None
+    members: list[GroupMemberAddItem] = Field(default_factory=list)
 
 
 class GroupRead(TimestampedModel):
     id: int
     name: str
     description: str | None
-
-
-class GroupMemberAddItem(BaseModel):
-    instance_id: int
-    agent_id: int
 
 
 class GroupMemberAddRequest(BaseModel):

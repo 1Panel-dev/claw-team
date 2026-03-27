@@ -21,7 +21,6 @@ from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
-from src.schemas.common import dump_model
 from src.schemas.group import GroupCreate, GroupDetail, GroupMemberAddRequest, GroupMemberRead, GroupRead
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
@@ -34,9 +33,27 @@ def list_groups(db: Session = Depends(db_session)) -> list[ChatGroup]:
 
 @router.post("", response_model=GroupRead)
 def create_group(payload: GroupCreate, db: Session = Depends(db_session)) -> ChatGroup:
-    # 群本身只保存名称和描述，成员关系单独存放在 chat_group_members。
-    item = ChatGroup(**dump_model(payload))
+    # 群和初始成员在一个事务里创建，避免出现“群已创建但成员写入失败”的不一致状态。
+    item = ChatGroup(name=payload.name, description=payload.description)
     db.add(item)
+    db.flush()
+
+    seen_pairs: set[tuple[int, int]] = set()
+    for member in payload.members:
+        instance = db.get(OpenClawInstance, member.instance_id)
+        agent = db.get(AgentProfile, member.agent_id)
+        if not instance:
+            raise HTTPException(status_code=404, detail=f"instance not found: {member.instance_id}")
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"agent not found: {member.agent_id}")
+
+        pair = (member.instance_id, member.agent_id)
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+
+        db.add(ChatGroupMember(group_id=item.id, instance_id=member.instance_id, agent_id=member.agent_id))
+
     db.commit()
     db.refresh(item)
     return item

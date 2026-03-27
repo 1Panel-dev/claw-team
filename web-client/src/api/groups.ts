@@ -11,7 +11,11 @@ export async function fetchGroupDetail(groupId: number): Promise<GroupDetailApi>
     return response.data;
 }
 
-export async function createGroup(payload: { name: string; description?: string | null }): Promise<GroupReadApi> {
+export async function createGroup(payload: {
+    name: string;
+    description?: string | null;
+    members?: Array<{ instance_id: number; agent_id: number }>;
+}): Promise<GroupReadApi> {
     const response = await apiClient.post<GroupReadApi>("/api/groups", payload);
     return response.data;
 }

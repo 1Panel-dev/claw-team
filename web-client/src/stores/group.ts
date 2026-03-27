@@ -16,7 +16,11 @@ export const useGroupStore = defineStore("group", {
         async loadGroupDetail(groupId: number) {
             this.currentGroupDetail = await fetchGroupDetail(groupId);
         },
-        async createNewGroup(payload: { name: string; description?: string | null }) {
+        async createNewGroup(payload: {
+            name: string;
+            description?: string | null;
+            members?: Array<{ instance_id: number; agent_id: number }>;
+        }) {
             this.creating = true;
             try {
                 const group = await createGroup(payload);

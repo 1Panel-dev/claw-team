@@ -1914,6 +1914,67 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertIsNone(db.get(MessageDispatch, "dsp_group_delete_1"))
             self.assertIsNone(db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_group_delete_1")))
 
+    def test_create_group_can_include_initial_members(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            pm = AgentProfile(
+                instance_id=instance.id,
+                agent_key="project-manager",
+                display_name="项目经理",
+                role_name="项目经理",
+                enabled=True,
+            )
+            engineer = AgentProfile(
+                instance_id=instance.id,
+                agent_key="execution-engineer",
+                display_name="执行工程师",
+                role_name="执行工程师",
+                enabled=True,
+            )
+            db.add_all([pm, engineer])
+            db.commit()
+            instance_id = instance.id
+            pm_id = pm.id
+            engineer_id = engineer.id
+
+        response = self.client.post(
+            "/api/groups",
+            json={
+                "name": "新项目群",
+                "description": "创建时直接带成员",
+                "members": [
+                    {"instance_id": instance_id, "agent_id": pm_id},
+                    {"instance_id": instance_id, "agent_id": engineer_id},
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        group_id = response.json()["id"]
+
+        with self.SessionLocal() as db:
+            group = db.get(ChatGroup, group_id)
+            self.assertIsNotNone(group)
+            members = list(
+                db.scalars(
+                    select(ChatGroupMember)
+                    .where(ChatGroupMember.group_id == group_id)
+                    .order_by(ChatGroupMember.id)
+                )
+            )
+            self.assertEqual(len(members), 2)
+            self.assertEqual({member.agent_id for member in members}, {pm_id, engineer_id})
+
     def test_callback_reply_final_with_parts_is_exposed_as_rich_message(self) -> None:
         """
         当 channel 回调里已经带了结构化 parts 时，

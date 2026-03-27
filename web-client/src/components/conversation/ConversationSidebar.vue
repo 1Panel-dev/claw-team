@@ -189,6 +189,7 @@
 
     <GroupCreateDrawer
       v-model:visible="createDrawerVisible"
+      :instances="instances"
       :submitting="groupStore.creating"
       @submit="handleCreateGroup"
     />
@@ -418,7 +419,11 @@ function hideRecentConversation() {
     ElMessage.success(t("conversation.removedFromRecent"));
 }
 
-async function handleCreateGroup(payload: { name: string; description: string }) {
+async function handleCreateGroup(payload: {
+    name: string;
+    description: string;
+    members: Array<{ instance_id: number; agent_id: number }>;
+}) {
     const group = await groupStore.createNewGroup(payload);
     createDrawerVisible.value = false;
     ElMessage.success(t("conversation.creatingGroupSuccess", { name: group.name }));

@@ -24,6 +24,32 @@
             :placeholder="t('conversation.groupDescriptionPlaceholder')"
           />
         </el-form-item>
+        <el-form-item :label="t('conversation.addMembers')">
+          <div class="drawer-body__field-hint">{{ t("conversation.addMembersHint") }}</div>
+          <el-select
+            v-model="selectedValues"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            :placeholder="t('conversation.selectAgents')"
+            style="width: 100%"
+          >
+            <el-option-group
+              v-for="instance in instances"
+              :key="instance.id"
+              :label="instance.name"
+            >
+              <el-option
+                v-for="agent in instance.agents"
+                :key="`${instance.id}:${agent.id}`"
+                :label="`${agent.display_name} / ${instance.name}`"
+                :value="`${instance.id}:${agent.id}`"
+                :disabled="!agent.enabled"
+              />
+            </el-option-group>
+          </el-select>
+        </el-form-item>
       </el-form>
     </div>
 
@@ -47,19 +73,26 @@
  */
 import { ref, watch } from "vue";
 import { useI18n } from "@/composables/useI18n";
+import type { AddressBookInstanceApi } from "@/types/api/addressBook";
 
 const props = defineProps<{
     visible: boolean;
     submitting: boolean;
+    instances: AddressBookInstanceApi[];
 }>();
 
 const emit = defineEmits<{
     "update:visible": [value: boolean];
-    submit: [payload: { name: string; description: string }];
+    submit: [payload: {
+        name: string;
+        description: string;
+        members: Array<{ instance_id: number; agent_id: number }>;
+    }];
 }>();
 
 const name = ref("");
 const description = ref("");
+const selectedValues = ref<string[]>([]);
 const { t } = useI18n();
 
 watch(
@@ -68,6 +101,7 @@ watch(
         if (visible) {
             name.value = "";
             description.value = "";
+            selectedValues.value = [];
         }
     },
 );
@@ -79,6 +113,13 @@ function submit() {
     emit("submit", {
         name: name.value.trim(),
         description: description.value.trim(),
+        members: selectedValues.value.map((value) => {
+            const [instanceId, agentId] = value.split(":").map((item) => Number(item));
+            return {
+                instance_id: instanceId,
+                agent_id: agentId,
+            };
+        }),
     });
 }
 </script>
@@ -94,6 +135,12 @@ function submit() {
   margin: 0;
   color: var(--color-text-secondary);
   line-height: 1.7;
+}
+
+.drawer-body__field-hint {
+  margin-bottom: 8px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
 }
 
 .drawer-actions {
