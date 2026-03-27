@@ -27,4 +27,6 @@ class AgentProfile(Base, TimestampMixin):
     display_name: Mapped[str] = mapped_column(String(120))
     role_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 远端 OpenClaw 已不再返回这个 Agent 时，只做软移除，保留历史会话和 CT ID。
+    removed_from_openclaw: Mapped[bool] = mapped_column(Boolean, default=False)
     created_via_claw_team: Mapped[bool] = mapped_column(Boolean, default=False)

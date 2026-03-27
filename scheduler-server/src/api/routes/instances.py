@@ -64,11 +64,12 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
                 display_name=display_name,
                 role_name=None,
                 enabled=True,
+                removed_from_openclaw=False,
             )
             db.add(agent)
         else:
             agent.display_name = display_name
-            agent.enabled = True
+            agent.removed_from_openclaw = False
         imported_agent_keys.append(agent_key)
 
     if imported_agent_keys:
@@ -76,7 +77,7 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
         existing_agents = db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance.id)).all()
         for agent in existing_agents:
             if agent.agent_key not in imported_set:
-                agent.enabled = False
+                agent.removed_from_openclaw = True
 
     return len(imported_agent_keys), imported_agent_keys
 

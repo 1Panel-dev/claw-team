@@ -10,7 +10,7 @@
         :title="t(item.labelKey)"
         @click="activePane = item.key"
       >
-        <span>{{ item.icon }}</span>
+        <ElIcon><component :is="item.icon" /></ElIcon>
       </button>
     </aside>
 
@@ -44,6 +44,15 @@
           +
         </button>
       </header>
+
+      <div v-if="activePane === 'agents'" class="sidebar__toolbar">
+        <button class="sidebar__ghost-button" type="button" @click="expandAllAgentSections">
+          {{ t("conversation.expandAll") }}
+        </button>
+        <button class="sidebar__ghost-button" type="button" @click="collapseAllAgentSections">
+          {{ t("conversation.collapseAll") }}
+        </button>
+      </div>
 
       <section class="sidebar__list">
         <template v-if="activePane === 'recent'">
@@ -89,24 +98,49 @@
         </template>
 
         <template v-else-if="activePane === 'agents'">
-          <div v-if="!filteredAgentRows.length" class="sidebar__empty">{{ t("conversation.noMatchingAgents") }}</div>
-          <button
-            v-for="item in filteredAgentRows"
-            :key="`${item.instanceId}:${item.agentId}`"
-            class="sidebar__item"
-            type="button"
-            @click="openDirect(item.instanceId, item.agentId)"
+          <div v-if="!filteredAgentGroups.length" class="sidebar__empty">{{ t("conversation.noMatchingAgents") }}</div>
+          <ElCollapse
+            v-else
+            class="sidebar__agent-groups"
+            :model-value="visibleExpandedAgentSections"
+            expand-icon-position="left"
+            @update:model-value="handleAgentSectionsChange"
           >
-            <div class="sidebar__item-body">
-              <div class="sidebar__row">
-                <div class="sidebar__item-title" :title="item.displayName">{{ item.displayName }}</div>
-                <span class="sidebar__badge" :class="{ 'sidebar__badge--muted': !item.enabled }">
-                  {{ item.enabled ? t("conversation.enabled") : t("conversation.disabled") }}
-                </span>
+            <ElCollapseItem
+              v-for="group in filteredAgentGroups"
+              :key="group.instanceId"
+              :name="String(group.instanceId)"
+              class="sidebar__agent-group"
+            >
+              <template #title>
+                <div class="sidebar__agent-group-title">
+                  <span class="sidebar__agent-group-name">{{ group.instanceName }}</span>
+                  <span class="sidebar__agent-group-count">{{ group.agents.length }}</span>
+                </div>
+              </template>
+
+              <div class="sidebar__agent-children">
+                <button
+                  v-for="item in group.agents"
+                  :key="`${item.instanceId}:${item.agentId}`"
+                  class="sidebar__item sidebar__item--agent"
+                  :class="{
+                    'sidebar__item--active':
+                      currentConversation?.type === 'direct'
+                      && currentConversation.direct_instance_id === item.instanceId
+                      && currentConversation.direct_agent_id === item.agentId,
+                  }"
+                  type="button"
+                  @click="openDirect(item.instanceId, item.agentId)"
+                >
+                  <div class="sidebar__item-body">
+                    <div class="sidebar__item-title" :title="item.displayName">{{ item.displayName }}</div>
+                    <div class="sidebar__item-preview">{{ item.roleName || t("conversation.roleUnset") }} · {{ item.ctId }}</div>
+                  </div>
+                </button>
               </div>
-              <div class="sidebar__item-preview">{{ item.instanceName }} · {{ item.roleName || t("conversation.roleUnset") }}</div>
-            </div>
-          </button>
+            </ElCollapseItem>
+          </ElCollapse>
         </template>
 
         <template v-else>
@@ -175,7 +209,8 @@
  * 后面如果要做更复杂的最近/所有切换、搜索、未读状态，
  * 可以在这个组件内部继续扩展，而不用替换整个左侧栏。
  */
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { Collection, ChatRound, User } from "@element-plus/icons-vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import ElMessage from "element-plus/es/components/message/index";
 import { useRouter } from "vue-router";
 
@@ -188,7 +223,6 @@ import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
 import type { ConversationListItemApi } from "@/types/api/conversation";
 import { parseServerDateTime } from "@/utils/datetime";
-import { ref } from "vue";
 
 const router = useRouter();
 const addressBookStore = useAddressBookStore();
@@ -212,10 +246,11 @@ const groups = computed(() => addressBookStore.groups);
 const recentConversations = computed(() => addressBookStore.visibleRecentConversations);
 const recentLoading = computed(() => addressBookStore.recentLoading);
 const currentConversationId = computed(() => conversationStore.currentConversationId);
+const currentConversation = computed(() => conversationStore.currentConversation);
 const navItems = [
-    { key: "recent", labelKey: "conversation.recentContacts", icon: "◷" },
-    { key: "agents", labelKey: "conversation.allContacts", icon: "◉" },
-    { key: "groups", labelKey: "conversation.groups", icon: "◎" },
+    { key: "recent", labelKey: "conversation.recentContacts", icon: ChatRound },
+    { key: "agents", labelKey: "conversation.allContacts", icon: User },
+    { key: "groups", labelKey: "conversation.groups", icon: Collection },
 ] as const;
 const keyword = computed(() => searchQuery.value.trim().toLowerCase());
 const filteredRecentConversations = computed(() =>
@@ -229,29 +264,40 @@ const filteredRecentConversations = computed(() =>
         );
     }),
 );
-const filteredAgentRows = computed(() =>
-    instances.value.flatMap((instance) =>
-        instance.agents
-            .filter((agent) => agent.enabled)
-            .filter((agent) => {
-                if (!keyword.value) {
-                    return true;
-                }
-                return (
-                    agent.display_name.toLowerCase().includes(keyword.value)
-                    || (agent.role_name ?? "").toLowerCase().includes(keyword.value)
-                    || instance.name.toLowerCase().includes(keyword.value)
-                );
-            })
-            .map((agent) => ({
+const filteredAgentGroups = computed(() =>
+    instances.value
+        .map((instance) => {
+            const enabledAgents = instance.agents.filter((agent) => agent.enabled);
+            const instanceMatched = keyword.value ? instance.name.toLowerCase().includes(keyword.value) : true;
+            const agentMatched = enabledAgents.some((agent) =>
+                agent.display_name.toLowerCase().includes(keyword.value)
+                || (agent.role_name ?? "").toLowerCase().includes(keyword.value)
+                || agent.ct_id.toLowerCase().includes(keyword.value),
+            );
+            if (!enabledAgents.length) {
+                return null;
+            }
+            if (keyword.value && !instanceMatched && !agentMatched) {
+                return null;
+            }
+            return {
                 instanceId: instance.id,
                 instanceName: instance.name,
-                agentId: agent.id,
-                displayName: agent.display_name,
-                roleName: agent.role_name,
-                enabled: agent.enabled,
-            })),
-    ),
+                agents: enabledAgents.map((agent) => ({
+                    instanceId: instance.id,
+                    instanceName: instance.name,
+                    agentId: agent.id,
+                    displayName: agent.display_name,
+                    roleName: agent.role_name,
+                    ctId: agent.ct_id,
+                })),
+            };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null),
+);
+const expandedAgentSections = ref<string[]>([]);
+const visibleExpandedAgentSections = computed(() =>
+    keyword.value ? filteredAgentGroups.value.map((group) => String(group.instanceId)) : expandedAgentSections.value,
 );
 const filteredGroups = computed(() =>
     groups.value.filter((group) => {
@@ -282,6 +328,7 @@ onMounted(async () => {
     window.addEventListener("click", closeRecentConversationMenu);
     window.addEventListener("resize", closeRecentConversationMenu);
     window.addEventListener("blur", closeRecentConversationMenu);
+    expandedAgentSections.value = filteredAgentGroups.value.map((group) => String(group.instanceId));
 });
 
 onBeforeUnmount(() => {
@@ -463,6 +510,18 @@ function cyclePane() {
     activePane.value = keys[(index + 1) % keys.length];
 }
 
+function handleAgentSectionsChange(value: string[] | string) {
+    expandedAgentSections.value = Array.isArray(value) ? value : [value];
+}
+
+function expandAllAgentSections() {
+    expandedAgentSections.value = filteredAgentGroups.value.map((group) => String(group.instanceId));
+}
+
+function collapseAllAgentSections() {
+    expandedAgentSections.value = [];
+}
+
 function formatRelativeTime(value: string) {
     const date = parseServerDateTime(value);
     const diffMs = Date.now() - date.getTime();
@@ -486,6 +545,18 @@ function formatRelativeTime(value: string) {
         day: "numeric",
     }).format(date);
 }
+
+watch(
+    filteredAgentGroups,
+    (groups) => {
+        const available = new Set(groups.map((group) => String(group.instanceId)));
+        expandedAgentSections.value = expandedAgentSections.value.filter((name) => available.has(name));
+        if (!expandedAgentSections.value.length && !keyword.value) {
+            expandedAgentSections.value = groups.map((group) => String(group.instanceId));
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <style scoped>
@@ -525,7 +596,7 @@ function formatRelativeTime(value: string) {
 
 .sidebar__panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   background: #f7f7f8;
 }
@@ -571,6 +642,12 @@ function formatRelativeTime(value: string) {
 
 .sidebar__plus--muted {
   color: #6d737c;
+}
+
+.sidebar__toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 10px;
 }
 
 .sidebar__list {
@@ -666,6 +743,26 @@ function formatRelativeTime(value: string) {
   white-space: nowrap;
 }
 
+.sidebar__item--agent {
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  background: #ffffff;
+}
+
+.sidebar__agent-children .sidebar__item--active {
+  border-color: #c8d4f6;
+  background: #eef3ff;
+  box-shadow: inset 0 0 0 1px rgba(108, 138, 214, 0.12);
+}
+
+.sidebar__agent-children .sidebar__item--active .sidebar__item-title {
+  color: #24438a;
+}
+
+.sidebar__agent-children .sidebar__item--active .sidebar__item-preview {
+  color: #5b6f9e;
+}
+
 .sidebar__item-preview {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -725,6 +822,60 @@ function formatRelativeTime(value: string) {
 .sidebar__ghost-button {
   padding: 4px 8px;
   font-size: 0.74rem;
+}
+
+.sidebar__agent-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.sidebar__agent-group {
+  border: 1px solid #e5e5e8;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f3f4f7;
+}
+
+.sidebar__agent-group :deep(.el-collapse-item__header) {
+  padding: 0 16px;
+  border-bottom: none;
+  background: #f3f4f7;
+  min-height: 54px;
+}
+
+.sidebar__agent-group :deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+}
+
+.sidebar__agent-group :deep(.el-collapse-item__content) {
+  padding-bottom: 0;
+}
+
+.sidebar__agent-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.sidebar__agent-group-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #2b3038;
+}
+
+.sidebar__agent-group-count {
+  color: #8d93a0;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.sidebar__agent-children {
+  display: grid;
+  gap: 4px;
+  padding: 0 10px 10px;
+  background: #ffffff;
 }
 
 .sidebar__empty {

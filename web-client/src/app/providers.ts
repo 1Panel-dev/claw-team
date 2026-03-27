@@ -10,6 +10,7 @@
 import type { App } from "vue";
 import { createPinia } from "pinia";
 import ElButton from "element-plus/es/components/button/index";
+import { ElCollapse, ElCollapseItem } from "element-plus/es/components/collapse/index";
 import ElConfigProvider from "element-plus/es/components/config-provider/index";
 import ElDrawer from "element-plus/es/components/drawer/index";
 import ElEmpty from "element-plus/es/components/empty/index";
@@ -23,23 +24,7 @@ import { ElOption, ElOptionGroup, ElSelect } from "element-plus/es/components/se
 import ElSwitch from "element-plus/es/components/switch/index";
 import { ElTabPane, ElTabs } from "element-plus/es/components/tabs/index";
 import { ElAutoResizer, ElTableV2 } from "element-plus/es/components/table-v2/index";
-
-import "element-plus/es/components/button/style/css";
-import "element-plus/es/components/empty/style/css";
-import "element-plus/es/components/drawer/style/css";
-import "element-plus/es/components/form/style/css";
-import "element-plus/es/components/form-item/style/css";
-import "element-plus/es/components/icon/style/css";
-import "element-plus/es/components/input/style/css";
-import "element-plus/es/components/input-number/style/css";
-import "element-plus/es/components/option/style/css";
-import "element-plus/es/components/option-group/style/css";
-import "element-plus/es/components/popover/style/css";
-import "element-plus/es/components/radio/style/css";
-import "element-plus/es/components/select/style/css";
-import "element-plus/es/components/switch/style/css";
-import "element-plus/es/components/tabs/style/css";
-import "element-plus/es/components/table-v2/style/css";
+import "element-plus/dist/index.css";
 
 import { router } from "@/router";
 
@@ -47,6 +32,8 @@ export function registerProviders(app: App<Element>): void {
     app.use(createPinia());
     app.use(router);
     app.component("ElButton", ElButton);
+    app.component("ElCollapse", ElCollapse);
+    app.component("ElCollapseItem", ElCollapseItem);
     app.component("ElConfigProvider", ElConfigProvider);
     app.component("ElDrawer", ElDrawer);
     app.component("ElEmpty", ElEmpty);

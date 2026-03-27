@@ -24,6 +24,8 @@ export const en = {
         noMatchingConversations: "No matching conversations.",
         noMatchingAgents: "No matching agents.",
         noMatchingGroups: "No matching groups.",
+        expandAll: "Expand all",
+        collapseAll: "Collapse all",
         noMessages: "No messages yet",
         group: "Group",
         direct: "Direct",

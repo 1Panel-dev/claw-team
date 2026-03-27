@@ -97,6 +97,7 @@ Notes:
 
 - `kind` must currently be `agent_dialogue.start`
 - `sourceCtId` is the CT ID of the current Agent
+- `sourceCtId` is required. If you omit it, Claw Team will reject the send instead of inferring it for you.
 - `topic` is the collaboration title
 - `message` is the concrete ask sent to the target Agent
 - dialogue window defaults are handled by the backend and do not need to be passed in normal use

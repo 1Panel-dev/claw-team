@@ -87,6 +87,8 @@ def ensure_runtime_schema() -> None:
         if "ct_id" not in agent_columns:
             statements.append("ALTER TABLE agent_profiles ADD COLUMN ct_id VARCHAR(32)")
             statements.append("CREATE INDEX IF NOT EXISTS ix_agent_profiles_ct_id ON agent_profiles (ct_id)")
+        if "removed_from_openclaw" not in agent_columns:
+            statements.append("ALTER TABLE agent_profiles ADD COLUMN removed_from_openclaw BOOLEAN DEFAULT 0")
 
     if "agent_dialogues" not in table_names:
         # 第一阶段直接用启动期补丁兜底，避免老的 SQLite 开发库缺表后整条会话链起不来。

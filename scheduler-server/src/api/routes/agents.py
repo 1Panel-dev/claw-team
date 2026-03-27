@@ -73,6 +73,7 @@ def upsert_instance_agent(
             display_name=display_name,
             role_name=role_name,
             enabled=enabled,
+            removed_from_openclaw=False,
             created_via_claw_team=created_via_claw_team or False,
         )
         db.add(agent)
@@ -80,7 +81,7 @@ def upsert_instance_agent(
         agent.display_name = display_name
         if role_name is not None:
             agent.role_name = role_name
-        agent.enabled = enabled
+        agent.removed_from_openclaw = False
         if created_via_claw_team is not None:
             agent.created_via_claw_team = created_via_claw_team
 
@@ -111,7 +112,7 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
         existing_agents = db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance.id)).all()
         for agent in existing_agents:
             if agent.agent_key not in imported_keys:
-                agent.enabled = False
+                agent.removed_from_openclaw = True
 
     db.flush()
 
@@ -119,7 +120,14 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
 @router.get("/instances/{instance_id}/agents", response_model=list[AgentRead])
 def list_agents(instance_id: int, db: Session = Depends(db_session)) -> list[AgentProfile]:
     agents = list(
-        db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance_id).order_by(AgentProfile.id))
+        db.scalars(
+            select(AgentProfile)
+            .where(
+                AgentProfile.instance_id == instance_id,
+                AgentProfile.removed_from_openclaw.is_(False),
+            )
+            .order_by(AgentProfile.id)
+        )
     )
     touched = False
     for agent in agents:
@@ -139,17 +147,25 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
     if not instance:
         raise HTTPException(status_code=404, detail="instance not found")
 
+    # 远端 channel 创建接口要求这些 markdown 字段是字符串。
+    # 创建时如果某个文件留空，就不要把 None 透传成 null，而是直接省略该字段。
+    remote_create_payload = {
+        "agentKey": payload.agent_key,
+        "displayName": payload.display_name,
+    }
+    if payload.identity_md is not None:
+        remote_create_payload["identityMd"] = payload.identity_md
+    if payload.soul_md is not None:
+        remote_create_payload["soulMd"] = payload.soul_md
+    if payload.user_md is not None:
+        remote_create_payload["userMd"] = payload.user_md
+    if payload.memory_md is not None:
+        remote_create_payload["memoryMd"] = payload.memory_md
+
     try:
         created_remote_agent = await channel_client.create_agent(
             instance=instance,
-            payload={
-                "agentKey": payload.agent_key,
-                "displayName": payload.display_name,
-                "identityMd": payload.identity_md,
-                "soulMd": payload.soul_md,
-                "userMd": payload.user_md,
-                "memoryMd": payload.memory_md,
-            },
+            payload=remote_create_payload,
         )
     except httpx.HTTPError as exc:
         response = getattr(exc, "response", None)

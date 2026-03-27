@@ -24,6 +24,8 @@ export const zhCN = {
         noMatchingConversations: "没有匹配的会话。",
         noMatchingAgents: "没有匹配的 Agent。",
         noMatchingGroups: "没有匹配的群组。",
+        expandAll: "全部展开",
+        collapseAll: "全部折叠",
         noMessages: "暂无消息",
         group: "群组",
         direct: "单聊",

@@ -143,6 +143,10 @@ let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const resolvedSenderMetaMap = computed(() => props.senderMetaMap ?? {});
 const pendingOlderAnchor = ref<{ scrollHeight: number; scrollTop: number } | null>(null);
 const waitingOlderRequest = ref(false);
+// 记录“更新前是否贴着底部”。
+// 发送消息或收到新回复后，要根据这个状态决定是否继续自动跟随到底部，
+// 不能等内容变化后再判断，否则高度变了就容易误判成“不该滚动”。
+const shouldStickToBottom = ref(true);
 const OLDER_MESSAGES_TRIGGER_PX = 300;
 const SPEAKER_COLORS = [
     "#c05621",
@@ -214,7 +218,7 @@ async function syncLatestScrollPosition() {
         return;
     }
 
-    if (isNearBottom()) {
+    if (shouldStickToBottom.value) {
         await scrollToBottom("smooth");
     }
 }
@@ -375,6 +379,7 @@ function handleScroll() {
     if (!containerRef.value || pendingOlderAnchor.value) {
         return;
     }
+    shouldStickToBottom.value = isNearBottom();
     // 比“碰到顶部再加载”稍早一点触发，减少用户撞到边界的感觉，
     // 但仍然保持逻辑简单，不重新引入复杂预取状态机。
     if (containerRef.value.scrollTop <= OLDER_MESSAGES_TRIGGER_PX) {
