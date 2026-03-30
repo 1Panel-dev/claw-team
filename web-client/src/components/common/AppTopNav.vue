@@ -84,7 +84,7 @@ function handleLocaleChange(value: string | number | boolean) {
 
 .top-nav__logo {
   width: auto;
-  height: 28px;
+  height: 40px;
   object-fit: contain;
 }
 
