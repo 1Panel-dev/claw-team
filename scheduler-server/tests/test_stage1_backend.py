@@ -537,6 +537,213 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertEqual(opening_message.sender_label, "main")
             self.assertEqual(opening_message.content, "我需要你确认登录接口字段和返回结构。")
 
+    def test_send_text_allows_repeated_same_payload_without_duplicate_message_id(self) -> None:
+        with self.SessionLocal() as db:
+            instance_a = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-a",
+                status="active",
+            )
+            instance_b = OpenClawInstance(
+                name="OpenClaw B",
+                channel_base_url="https://example.org",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-abcdef",
+                callback_token="callback-token-b",
+                status="active",
+            )
+            db.add_all([instance_a, instance_b])
+            db.flush()
+
+            source_agent = AgentProfile(
+                instance_id=instance_a.id,
+                agent_key="main",
+                ct_id="CTA-0001",
+                display_name="main",
+                role_name="项目经理",
+                enabled=True,
+            )
+            target_agent = AgentProfile(
+                instance_id=instance_b.id,
+                agent_key="testbot2",
+                ct_id="CTA-0009",
+                display_name="TestBot2",
+                role_name="执行工程师",
+                enabled=True,
+            )
+            db.add_all([source_agent, target_agent])
+            db.commit()
+
+        request_payload = {
+            "kind": "agent_dialogue.start",
+            "sourceCtId": "CTA-0001",
+            "targetCtId": "CTA-0009",
+            "topic": "重复发送测试",
+            "message": "同样内容重复发送两次。",
+            "windowSeconds": 300,
+            "softMessageLimit": 12,
+            "hardMessageLimit": 20,
+        }
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-send-text"})):
+            first = self.client.post(
+                "/api/v1/claw-team/send-text",
+                headers={"authorization": "Bearer callback-token-a"},
+                json=request_payload,
+            )
+            second = self.client.post(
+                "/api/v1/claw-team/send-text",
+                headers={"authorization": "Bearer callback-token-a"},
+                json=request_payload,
+            )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+
+        first_payload = first.json()
+        second_payload = second.json()
+        self.assertNotEqual(first_payload["openingMessageId"], second_payload["openingMessageId"])
+
+        with self.SessionLocal() as db:
+            first_message = db.get(Message, first_payload["openingMessageId"])
+            second_message = db.get(Message, second_payload["openingMessageId"])
+            self.assertIsNotNone(first_message)
+            self.assertIsNotNone(second_message)
+            assert first_message is not None
+            assert second_message is not None
+            self.assertEqual(first_message.content, request_payload["message"])
+            self.assertEqual(second_message.content, request_payload["message"])
+
+    def test_send_text_routes_default_user_target_to_direct_conversation(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-a",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+            instance_id = instance.id
+
+            source_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                ct_id="CTA-0001",
+                display_name="main",
+                role_name="项目经理",
+                enabled=True,
+            )
+            db.add(source_agent)
+            db.flush()
+            source_agent_id = source_agent.id
+            db.commit()
+
+        response = self.client.post(
+            "/api/v1/claw-team/send-text",
+            headers={"authorization": "Bearer callback-token-a"},
+            json={
+                "kind": "agent_dialogue.start",
+                "sourceCtId": "CTA-0001",
+                "targetCtId": "CTU-0001",
+                "topic": "请求确认",
+                "message": "请查看当前交付物并确认。",
+                "windowSeconds": 300,
+                "softMessageLimit": 12,
+                "hardMessageLimit": 20,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertIn("conversationId", payload)
+        self.assertIn("openingMessageId", payload)
+
+        with self.SessionLocal() as db:
+            conversation = db.get(Conversation, payload["conversationId"])
+            self.assertIsNotNone(conversation)
+            assert conversation is not None
+            self.assertEqual(conversation.type, "direct")
+            self.assertEqual(conversation.direct_instance_id, instance_id)
+            self.assertEqual(conversation.direct_agent_id, source_agent_id)
+
+            opening_message = db.get(Message, payload["openingMessageId"])
+            self.assertIsNotNone(opening_message)
+            assert opening_message is not None
+            self.assertEqual(opening_message.conversation_id, conversation.id)
+            self.assertEqual(opening_message.sender_type, "agent")
+            self.assertEqual(opening_message.sender_label, "main")
+            self.assertEqual(opening_message.content, "请查看当前交付物并确认。")
+
+            dialogues = list(db.scalars(select(AgentDialogue)))
+            self.assertEqual(dialogues, [])
+
+    def test_send_text_reuses_direct_conversation_for_default_user_target(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-a",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            source_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                ct_id="CTA-0001",
+                display_name="main",
+                role_name="项目经理",
+                enabled=True,
+            )
+            db.add(source_agent)
+            db.flush()
+
+            existing_conversation = Conversation(
+                type="direct",
+                title=f"{instance.name} / {source_agent.display_name}",
+                direct_instance_id=instance.id,
+                direct_agent_id=source_agent.id,
+            )
+            db.add(existing_conversation)
+            db.commit()
+
+        request_payload = {
+            "kind": "agent_dialogue.start",
+            "sourceCtId": "CTA-0001",
+            "targetCtId": "CTU-0001",
+            "topic": "请求确认",
+            "message": "请查看当前交付物并确认。",
+            "windowSeconds": 300,
+            "softMessageLimit": 12,
+            "hardMessageLimit": 20,
+        }
+
+        first = self.client.post(
+            "/api/v1/claw-team/send-text",
+            headers={"authorization": "Bearer callback-token-a"},
+            json=request_payload,
+        )
+        second = self.client.post(
+            "/api/v1/claw-team/send-text",
+            headers={"authorization": "Bearer callback-token-a"},
+            json=request_payload,
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json()["conversationId"], second.json()["conversationId"])
+
+
     def test_agent_dialogue_intervention_dispatches_to_next_agent_when_active(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(
@@ -921,7 +1128,7 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertIn("Dialogue ID: AD-", payload["text"])
             self.assertIn("Your identity: TestBot (CTA-0009)", payload["text"])
             self.assertIn("Current partner: liaotian (CTA-0006)", payload["text"])
-            self.assertIn("Human guidance:", payload["text"])
+            self.assertIn("Human guidance from User (CTU-0001):", payload["text"])
             self.assertIn("继续接龙", payload["text"])
 
     def test_resume_agent_dialogue_dispatches_latest_pending_agent_message(self) -> None:
@@ -1610,7 +1817,7 @@ class Stage1BackendTests(unittest.TestCase):
         messages_payload = messages_response.json()
         mirrored = messages_payload["messages"][0]
         self.assertEqual(mirrored["sender_type"], "user")
-        self.assertEqual(mirrored["sender_label"], "User")
+        self.assertEqual(mirrored["sender_label"], "User (CTU-0001)")
         self.assertEqual(mirrored["source"], "webchat")
         self.assertEqual(mirrored["content"], "大兴天气")
 
@@ -1830,7 +2037,7 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertIn("Group: 小项目群", first_payload["text"])
         self.assertIn("Your identity: 项目经理 (项目经理, CTA-0001)", first_payload["text"])
         self.assertIn("执行工程师 (执行工程师, CTA-0002)", first_payload["text"])
-        self.assertIn("Current speaker: User", first_payload["text"])
+        self.assertIn("Current speaker: User (CTU-0001)", first_payload["text"])
 
         self.assertIn("Your identity: 执行工程师 (执行工程师, CTA-0002)", second_payload["text"])
         self.assertIn("项目经理 (项目经理, CTA-0001)", second_payload["text"])

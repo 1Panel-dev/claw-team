@@ -35,6 +35,8 @@ from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.services.agent_dialogue_lookup import build_agent_dialogue_pair_key
 from src.services.conversation_events import conversation_event_hub
+from src.services.default_user import display_sender_label
+from src.services.default_user import get_default_user_identity
 from src.services.local_agent_mock import simulate_local_agent_reply
 from src.schemas.common import validate_orm
 from src.schemas.conversation import (
@@ -52,6 +54,7 @@ from src.schemas.conversation import (
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 STALE_DISPATCH_TIMEOUT = timedelta(seconds=90)
+DEFAULT_USER = get_default_user_identity()
 
 
 @router.get("", response_model=list[ConversationListItem])
@@ -134,7 +137,13 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
                 last_message_id=last_message.id if last_message else None,
                 last_message_preview=preview,
                 last_message_sender_type=last_message.sender_type if last_message else None,
-                last_message_sender_label=last_message.sender_label if last_message else None,
+                last_message_sender_label=(
+                    display_sender_label(
+                        sender_type=last_message.sender_type,
+                        sender_label=last_message.sender_label,
+                    )
+                    if last_message else None
+                ),
                 last_message_at=last_message.created_at.isoformat() if last_message else None,
                 last_message_status=last_message.status if last_message else None,
                 ),
@@ -358,7 +367,7 @@ async def send_message(
         id=f"msg_{uuid.uuid4().hex[:24]}",
         conversation_id=conversation_id,
         sender_type="user",
-        sender_label="User",
+        sender_label=DEFAULT_USER.sender_label,
         content=payload.content,
         status="pending",
     )
@@ -428,7 +437,7 @@ async def _dispatch_direct(*, db: Session, conversation: Conversation, message: 
             "messageId": message.id,
             "accountId": instance.channel_account_id,
             "chat": {"type": "direct", "chatId": str(conversation.id)},
-            "from": {"userId": "user", "displayName": "User"},
+            "from": DEFAULT_USER.as_channel_sender(),
             "text": message.content,
             "directAgentId": agent.agent_key,
             "useDedicatedDirectSession": payload.use_dedicated_direct_session,
@@ -536,7 +545,7 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
                     f"Your identity: {agent.display_name} ({role_label}, {ct_label})",
                     "Group members:",
                     group_members_text,
-                    "Current speaker: User",
+                    f"Current speaker: {DEFAULT_USER.label_with_ct_id}",
                     mention_line,
                     "Instruction:",
                     "- If the current discussion is not in your responsibility scope, stay silent.",
@@ -550,7 +559,7 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
                 "messageId": message.id,
                 "accountId": instance.channel_account_id,
                 "chat": {"type": "group", "chatId": f"group-conv-{conversation.id}", "groupId": str(group.id)},
-                "from": {"userId": "user", "displayName": "User"},
+                "from": DEFAULT_USER.as_channel_sender(),
                 "text": contextual_text,
                 "targetAgentIds": [agent.agent_key],
             }

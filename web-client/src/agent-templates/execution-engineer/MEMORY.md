@@ -80,7 +80,7 @@
 
 当你需要与其他 Agent 协作时：
 
-- 使用 `agent-collaboration` skill 发起沟通。
+- 使用 `ct-chat` skill 发起沟通。
 - 这条协作通道可以被称为 `Claw Team Channel`、`claw-team`、`CT Channel`、`CT`、`CT Call`，它们指的是同一条路径。
 - 不要只口头说“我去联系对方”，而要真正通过这条通道向目标 `CT ID` 发起协作。
 - 发起协作时，必须带上你自己的 `sourceCtId`，也就是你自己的 `CT ID`。如果缺少这项，CT Channel 侧会直接报错。
@@ -100,11 +100,11 @@
 发起前至少准备好这些信息：
 
 - 你自己的 `CT ID`
-- 目标 Agent 的 `CT ID`
+- 目标的 `CT ID`
 - 这次协作的 `topic`
 - 发给对方的具体 `message`
 
-具体发送格式以 `agent-collaboration` skill 的说明为准。
+具体发送格式以 `ct-chat` skill 的说明为准。
 
 如果只是想“问问看”“确认一下”，但自己已有足够信息，就先自己判断，不要把责任转移给别人。
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -35,6 +36,7 @@ from src.services.conversation_events import conversation_event_hub
 from src.services.agent_dialogue_lookup import find_reusable_agent_dialogue
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply, dispatch_agent_dialogue_turn
 from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.default_user import get_default_user_identity
 
 router = APIRouter(prefix="/api/v1/claw-team", tags=["callbacks"])
 
@@ -42,6 +44,7 @@ CHANNEL_ID = "claw-team"
 WEBCHAT_CHANNEL_ID = "webchat"
 AGENT_SESSION_PREFIX = "agent:"
 WEBCHAT_MIRROR_EVENT_SOURCE = "webchat_mirror"
+DEFAULT_USER = get_default_user_identity()
 
 
 class WebchatMirrorCreate(BaseModel):
@@ -275,7 +278,7 @@ async def mirror_webchat_message(
         db.flush()
 
     sender_type = _normalize_mirror_sender_type(payload.senderType)
-    sender_label = agent.display_name if sender_type == "agent" else "User"
+    sender_label = agent.display_name if sender_type == "agent" else DEFAULT_USER.sender_label
 
     mirrored_message_id = _build_webchat_mirror_message_id(
         instance_id=instance.id,
@@ -357,6 +360,49 @@ async def receive_send_text(
     )
     if not source_agent:
         raise HTTPException(status_code=404, detail="source agent not found for current instance")
+    if target_ct_id == DEFAULT_USER.ct_id:
+        conversation = db.scalar(
+            select(Conversation).where(
+                Conversation.type == "direct",
+                Conversation.direct_instance_id == instance.id,
+                Conversation.direct_agent_id == source_agent.id,
+            )
+        )
+        if conversation is None:
+            conversation = Conversation(
+                type="direct",
+                title=f"{instance.name} / {source_agent.display_name}",
+                direct_instance_id=instance.id,
+                direct_agent_id=source_agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+        # 发送给默认用户时，不需要再走 Agent 对话调度。
+        # 当前系统只有一个默认用户，因此这里稳定落到“该 Agent 在当前实例下的 direct 对话”。
+        opening_message = Message(
+            id=f"msg_{uuid.uuid4().hex[:24]}",
+            conversation_id=conversation.id,
+            sender_type="agent",
+            sender_label=source_agent.display_name,
+            content=payload.message.strip(),
+            status="completed",
+        )
+        db.add(opening_message)
+        db.commit()
+        await conversation_event_hub.publish_update(
+            conversation.id,
+            {
+                "source": "send_text",
+                "messageId": opening_message.id,
+                "targetCtId": target_ct_id,
+            },
+        )
+        return {
+            "ok": True,
+            "conversationId": conversation.id,
+            "openingMessageId": opening_message.id,
+        }
 
     target_agent = db.scalar(select(AgentProfile).where(AgentProfile.ct_id == target_ct_id))
     if not target_agent:
@@ -413,8 +459,10 @@ async def receive_send_text(
         dialogue.last_speaker_agent_id = source_agent.id
         conversation.title = f"{source_agent.display_name} ↔ {target_agent.display_name}"
 
+    # 这里必须为每次 send-text 生成唯一消息 ID。
+    # 如果直接按消息内容做哈希，同样内容重复发送会命中同一个主键，导致 500。
     opening_message = Message(
-        id=f"msg_{hashlib.sha1(f'{instance.id}|{source_ct_id}|{target_ct_id}|{payload.topic}|{payload.message}'.encode('utf-8')).hexdigest()[:24]}",
+        id=f"msg_{uuid.uuid4().hex[:24]}",
         conversation_id=conversation.id,
         sender_type="agent",
         sender_label=source_agent.display_name,

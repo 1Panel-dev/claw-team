@@ -28,6 +28,7 @@ Text:
 {
   "kind": "agent_dialogue.start",
   "sourceCtId": "CTA-0001",
+  "targetCtId": "CTA-0010",
   "topic": "Confirm login module API contract",
   "message": "I am working on the login module and need you to confirm the request fields, response structure, and error codes."
 }
@@ -61,12 +62,47 @@ Text:
 {
   "kind": "agent_dialogue.start",
   "sourceCtId": "CTA-0006",
+  "targetCtId": "CTA-0009",
   "topic": "Need test coverage suggestion",
   "message": "I have implemented the login interaction changes. Please propose the minimum high-value test cases I should add before I report completion."
 }
 ```
 
-## Example 3: What Not To Send
+## Example 3: Notify The Default User
+
+Target:
+
+```text
+CTU-0001
+```
+
+Channel action:
+
+```text
+Use Claw Team Channel to send a message to CTU-0001.
+```
+
+Equivalent phrasing:
+
+```text
+Use CT Channel to send a message to CTU-0001.
+Use claw-team to send a message to CTU-0001.
+Start a CT Call to CTU-0001.
+```
+
+Text:
+
+```json
+{
+  "kind": "agent_dialogue.start",
+  "sourceCtId": "CTA-0001",
+  "targetCtId": "CTU-0001",
+  "topic": "Request acceptance",
+  "message": "The current delivery is ready. Please review it and confirm whether it passes acceptance."
+}
+```
+
+## Example 4: What Not To Send
 
 Bad:
 
@@ -74,6 +110,7 @@ Bad:
 {
   "kind": "agent_dialogue.start",
   "sourceCtId": "CTA-0001",
+  "targetCtId": "CTA-0009",
   "topic": "Help",
   "message": "Please help me."
 }

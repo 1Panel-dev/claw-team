@@ -29,8 +29,11 @@ const requestMock = vi.mocked(request);
 describe("claw-team sendText", () => {
     it("normalizes bare and prefixed CT IDs", () => {
         expect(normalizeTargetCtId("CTA-0009")).toBe("CTA-0009");
+        expect(normalizeTargetCtId("CTU-0001")).toBe("CTU-0001");
         expect(normalizeTargetCtId("ctid:cta-0009")).toBe("CTA-0009");
+        expect(normalizeTargetCtId("ctid:ctu-0001")).toBe("CTU-0001");
         expect(normalizeTargetCtId("@CTA-0010")).toBe("CTA-0010");
+        expect(normalizeTargetCtId("@CTU-0001")).toBe("CTU-0001");
         expect(normalizeTargetCtId("\"CTA-0010\"")).toBe("CTA-0010");
         expect(normalizeTargetCtId("CTA－0010")).toBe("CTA-0010");
     });
@@ -40,6 +43,10 @@ describe("claw-team sendText", () => {
             ok: true,
             to: "CTA-0009",
         });
+        expect(resolveClawTeamTarget("ctid:ctu-0001")).toEqual({
+            ok: true,
+            to: "CTU-0001",
+        });
         expect(resolveClawTeamTarget("bad-target")).toMatchObject({
             ok: true,
             to: "bad-target",
@@ -48,6 +55,7 @@ describe("claw-team sendText", () => {
 
     it("resolves CT IDs for messaging target resolution", async () => {
         expect(looksLikeClawTeamCtId("CTA-0010")).toBe(true);
+        expect(looksLikeClawTeamCtId("CTU-0001")).toBe(true);
         expect(looksLikeClawTeamCtId("@CTA-0010")).toBe(true);
         expect(looksLikeClawTeamCtId("bad-target")).toBe(false);
 
@@ -55,6 +63,12 @@ describe("claw-team sendText", () => {
             to: "CTA-0010",
             kind: "user",
             display: "CTA-0010",
+            source: "normalized",
+        });
+        await expect(resolveClawTeamMessagingTarget({ input: "CTU-0001" })).resolves.toEqual({
+            to: "CTU-0001",
+            kind: "user",
+            display: "CTU-0001",
             source: "normalized",
         });
         await expect(resolveClawTeamMessagingTarget({ input: "bad-target" })).resolves.toBeNull();

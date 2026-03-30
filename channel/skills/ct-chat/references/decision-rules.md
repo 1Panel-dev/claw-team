@@ -2,7 +2,7 @@
 
 ## Start Collaboration Only When Needed
 
-Before starting an Agent dialogue, ask:
+Before starting a tracked CT message, ask:
 
 1. Can I finish this myself with the information already available?
 2. Do I know exactly which Agent should help?
@@ -10,7 +10,7 @@ Before starting an Agent dialogue, ask:
 
 If any answer is no, do not start the dialogue yet.
 
-## When The Target Agent Is Unknown
+## When The Target Is Unknown
 
 If the target is not certain:
 
@@ -19,12 +19,13 @@ If the target is not certain:
 3. If the target is still ambiguous, ask the human or project manager for clarification.
 
 Do not send a vague collaboration request to a random Agent.
+Do not send a vague CT message to a random target.
 
 ## What Good Collaboration Looks Like
 
 Good collaboration:
 
-- names the target Agent clearly
+- names the target clearly
 - explicitly treats the send as a Claw Team Channel action to a CT ID
 - understands `Claw Team Channel`, `claw-team`, `CT Channel`, `CT`, and `CT Call` as the same collaboration path
 - has one clear topic

@@ -23,11 +23,13 @@ from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.default_user import get_default_user_identity
 
 IN_FLIGHT_DISPATCH_STATUSES = ("pending", "accepted", "streaming")
 AGENT_DIALOGUE_WARNING_TEXT = "短时间内对话次数较多，请聚焦当前目标，避免无效往返。"
 AGENT_DIALOGUE_CHANNEL_PREFIX = "agent-dialogue"
 AGENT_DIALOGUE_CONTEXT_HEADER = "[Claw Team Agent Dialogue]"
+DEFAULT_USER = get_default_user_identity()
 
 
 async def dispatch_agent_dialogue_opening_turn(*, db: Session, dialogue: AgentDialogue, opening_message: Message) -> str | None:
@@ -47,8 +49,8 @@ async def dispatch_agent_dialogue_opening_turn(*, db: Session, dialogue: AgentDi
         conversation=conversation,
         message=opening_message,
         recipient_agent=source_agent,
-        sender_label="User",
-        sender_user_id="user",
+        sender_label=DEFAULT_USER.label_with_ct_id,
+        sender_user_id=DEFAULT_USER.internal_id,
         dispatch_mode="agent_dialogue_opening",
     )
 
@@ -92,8 +94,8 @@ async def continue_agent_dialogue_after_reply(
                 conversation=conversation,
                 message=pending_user_message,
                 recipient_agent=next_agent,
-                sender_label="User",
-                sender_user_id="user",
+                sender_label=DEFAULT_USER.label_with_ct_id,
+                sender_user_id=DEFAULT_USER.internal_id,
                 dispatch_mode="agent_dialogue_intervention",
             )
 
@@ -239,7 +241,7 @@ def _build_agent_dialogue_context_text(
     partner_agent = target_agent if recipient_agent.id == source_agent.id else source_agent
     recent_message_count = _count_recent_dialogue_messages(db=db, dialogue=dialogue)
     if message.sender_type == "user":
-        message_intro = "Human guidance:"
+        message_intro = f"Human guidance from {DEFAULT_USER.label_with_ct_id}:"
     else:
         message_intro = f"Partner message from {sender_label}:"
 
@@ -391,8 +393,8 @@ async def dispatch_agent_dialogue_intervention(
         conversation=conversation,
         message=message,
         recipient_agent=recipient_agent,
-        sender_label="User",
-        sender_user_id="user",
+        sender_label=DEFAULT_USER.label_with_ct_id,
+        sender_user_id=DEFAULT_USER.internal_id,
         dispatch_mode="agent_dialogue_intervention",
     )
 

@@ -111,10 +111,10 @@ const plugin = {
                 },
                 messaging: {
                     // message 工具会先走 messaging.targetResolver，再进入 outbound.sendText。
-                    // 这里把 CTA-xxxx 识别成 direct user target，才能让宿主认可这是合法目标。
+                    // 这里把合法 CT ID 识别成 direct target，才能让宿主认可这是合法目标。
                     targetResolver: {
                         looksLikeId: (raw: string, normalized?: string) => looksLikeClawTeamCtId(raw, normalized),
-                        hint: "Use a CT ID like CTA-0009",
+                        hint: "Use a CT ID like CTA-0009 or CTU-0001",
                         resolveTarget: async ({ input, normalized }: { input: string; normalized: string }) => {
                             const resolved = await resolveClawTeamMessagingTarget({ input });
                             if (!resolved) {

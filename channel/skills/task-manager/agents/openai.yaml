@@ -1,4 +1,0 @@
-interface:
-  display_name: "Task Manager"
-  short_description: "Break conversation work into tasks and write them into the Claw Team task system."
-  default_prompt: "Use $task-manager to decompose the current request into tasks and record them in the Claw Team task system."

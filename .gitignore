@@ -39,6 +39,7 @@ coverage/
 # Database
 *.db
 *.sqlite
+scheduler-server/data/
 
 # Secrets (敏感信息)
 *.pem

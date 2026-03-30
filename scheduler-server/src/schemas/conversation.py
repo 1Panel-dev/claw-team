@@ -13,6 +13,7 @@ import re
 from pydantic import BaseModel, Field
 
 from src.schemas.common import TimestampedModel
+from src.services.default_user import display_sender_label
 
 
 class DirectConversationCreate(BaseModel):
@@ -182,7 +183,10 @@ def build_message_read(message) -> MessageRead:
         id=message.id,
         conversation_id=message.conversation_id,
         sender_type=message.sender_type,
-        sender_label=message.sender_label,
+        sender_label=display_sender_label(
+            sender_type=message.sender_type,
+            sender_label=message.sender_label,
+        ),
         source=_detect_message_source(message.id),
         content=message.content,
         status=message.status,

@@ -18,6 +18,7 @@ No other kind is supported yet.
 {
   "kind": "agent_dialogue.start",
   "sourceCtId": "CTA-0001",
+  "targetCtId": "CTA-0010",
   "topic": "Discuss login module API contract",
   "message": "I need you to confirm the field list, error codes, and response structure."
 }
@@ -29,6 +30,8 @@ Field rules:
   - must be `agent_dialogue.start`
 - `sourceCtId`
   - must be the CT ID of the current Agent
+- `targetCtId`
+  - must be the target CT ID
 - `topic`
   - short collaboration title
 - `message`
@@ -36,15 +39,16 @@ Field rules:
 
 ## Target
 
-The target Agent is not inside the JSON body.
+The target should appear in both places:
 
-It is passed through the channel target:
-
+- `targetCtId` inside the JSON body
 - `to = CTA-0009`
 
 Recommended standard:
 
-- use plain CT IDs like `CTA-0009`
+- use plain CT IDs like `CTA-0009` or `CTU-0001`
+- treat the target as one unified `targetCtId`
+- keep `targetCtId` and `to` consistent
 
 ## Optional Backend Defaults
 

@@ -1,8 +1,10 @@
 import projectManagerIdentity from "@/agent-templates/project-manager/IDENTITY.md?raw";
 import projectManagerSoul from "@/agent-templates/project-manager/SOUL.md?raw";
+import projectManagerUser from "@/agent-templates/project-manager/USER.md?raw";
 import projectManagerMemory from "@/agent-templates/project-manager/MEMORY.md?raw";
 import executionEngineerIdentity from "@/agent-templates/execution-engineer/IDENTITY.md?raw";
 import executionEngineerSoul from "@/agent-templates/execution-engineer/SOUL.md?raw";
+import executionEngineerUser from "@/agent-templates/execution-engineer/USER.md?raw";
 import executionEngineerMemory from "@/agent-templates/execution-engineer/MEMORY.md?raw";
 
 export type AgentTemplateDefinition = {
@@ -37,7 +39,7 @@ export const AGENT_TEMPLATES: AgentTemplateDefinition[] = [
         role_name: "项目经理",
         identity_md: projectManagerIdentity,
         soul_md: projectManagerSoul,
-        user_md: "",
+        user_md: projectManagerUser,
         memory_md: projectManagerMemory,
     },
     {
@@ -48,7 +50,7 @@ export const AGENT_TEMPLATES: AgentTemplateDefinition[] = [
         role_name: "执行工程师",
         identity_md: executionEngineerIdentity,
         soul_md: executionEngineerSoul,
-        user_md: "",
+        user_md: executionEngineerUser,
         memory_md: executionEngineerMemory,
     },
 ];

@@ -17,6 +17,7 @@ import { CHANNEL_ID, type AccountConfig } from "../config.js";
 
 export const AGENT_DIALOGUE_START_KIND = "agent_dialogue.start" as const;
 export const CT_ID_PREFIX = "ctid:" as const;
+const TARGET_CT_ID_PATTERN = /^CT[AU]-\d{4,}$/;
 
 type AgentDialogueStartPayload = {
     kind: typeof AGENT_DIALOGUE_START_KIND;
@@ -33,6 +34,11 @@ type SendTextContext = {
     to: string;
     text: string;
     accountId?: string | null;
+    replyToId?: string | null;
+    threadId?: string | number | null;
+    identity?: unknown;
+    deps?: unknown;
+    silent?: boolean;
 };
 
 type SendTextResult = {
@@ -79,7 +85,7 @@ function normalizeTargetCtId(to: string): string {
         ? withoutAt.slice(CT_ID_PREFIX.length)
         : withoutAt;
     const value = normalized.trim().toUpperCase();
-    if (!/^CTA-\d{4,}$/.test(value)) {
+    if (!TARGET_CT_ID_PATTERN.test(value)) {
         throw new Error("claw_team_invalid_target_ct_id");
     }
     return value;
@@ -90,7 +96,7 @@ export function resolveClawTeamTarget(to?: string): TargetResolution {
     if (!raw) {
         return {
             ok: false,
-            error: new Error("Delivering to Claw Team requires a target CT ID like CTA-0009."),
+            error: new Error("Delivering to Claw Team requires a target CT ID like CTA-0009 or CTU-0001."),
         };
     }
     try {
@@ -199,16 +205,6 @@ export async function sendClawTeamText(params: {
     const payload = parseAgentDialogueStartPayload(params.ctx.text);
     const url = new URL("/api/v1/claw-team/send-text", params.account.baseUrl).toString();
 
-    params.logger.info(
-        {
-            targetCtId,
-            sourceCtId: payload.sourceCtId,
-            kind: payload.kind,
-            topic: payload.topic,
-        },
-        "Claw Team sendText parsed payload",
-    );
-
     const response = await request(url, {
         method: "POST",
         headers: {
@@ -253,17 +249,6 @@ export async function sendClawTeamText(params: {
     const dialogueId = Number(record.dialogueId ?? 0);
     const conversationId = Number(record.conversationId ?? 0);
     const openingMessageId = String(record.openingMessageId ?? "").trim();
-
-    params.logger.info(
-        {
-            targetCtId,
-            sourceCtId: payload.sourceCtId,
-            dialogueId,
-            conversationId,
-            openingMessageId,
-        },
-        "Claw Team sendText request succeeded",
-    );
 
     return {
         messageId: openingMessageId || `claw-team:${CHANNEL_ID}:${dialogueId || "unknown"}`,

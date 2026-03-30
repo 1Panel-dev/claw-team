@@ -29,8 +29,10 @@ from src.services.agent_dialogue_runner import (
     resume_agent_dialogue_if_possible,
 )
 from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.default_user import get_default_user_identity
 
 router = APIRouter(prefix="/api/agent-dialogues", tags=["agent-dialogues"])
+DEFAULT_USER = get_default_user_identity()
 
 
 def serialize_agent_dialogue(db: Session, dialogue: AgentDialogue) -> AgentDialogueRead:
@@ -140,7 +142,7 @@ async def create_agent_dialogue(payload: AgentDialogueCreate, db: Session = Depe
         id=f"msg_{uuid.uuid4().hex[:24]}",
         conversation_id=conversation.id,
         sender_type="user",
-        sender_label="User",
+        sender_label=DEFAULT_USER.sender_label,
         content=payload.topic.strip(),
         status="completed",
     )
@@ -198,7 +200,7 @@ async def add_agent_dialogue_message(
         id=f"msg_{uuid.uuid4().hex[:24]}",
         conversation_id=dialogue.conversation_id,
         sender_type="user",
-        sender_label="User",
+        sender_label=DEFAULT_USER.sender_label,
         content=payload.content.strip(),
         status="completed",
     )
