@@ -4,7 +4,14 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 
-import { AccountConfigSchema, resolveGatewayRuntimeConfig } from "../config.js";
+import {
+    AccountConfigSchema,
+    channelAccountConfigSchema,
+    channelConfigSchema,
+    channelConfigUiHints,
+    pluginConfigSchema,
+    resolveGatewayRuntimeConfig,
+} from "../config.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -105,6 +112,43 @@ describe("resolveGatewayRuntimeConfig", () => {
             transport: "auto",
             stream: true,
             allowInsecureTls: false,
+        });
+    });
+});
+
+describe("config manifest schemas", () => {
+    it("uses nested gateway fields consistently in plugin, channel, and account schemas", () => {
+        const accountSchema = pluginConfigSchema.properties.accounts.additionalProperties;
+        const gatewaySchema = accountSchema.properties.gateway;
+        const accountProperties = accountSchema.properties as Record<string, unknown>;
+        const channelProperties = channelAccountConfigSchema.properties as Record<string, unknown>;
+        const channelRootProperties = channelConfigSchema.properties as Record<string, unknown>;
+
+        expect(gatewaySchema).toBeDefined();
+        expect(gatewaySchema.properties.baseUrl.type).toBe("string");
+        expect(gatewaySchema.properties.token.type).toBe("string");
+        expect(accountProperties.gatewayBaseUrl).toBeUndefined();
+        expect(accountProperties.gatewayToken).toBeUndefined();
+
+        expect(channelAccountConfigSchema.properties.gateway).toBeDefined();
+        expect(channelProperties.gatewayBaseUrl).toBeUndefined();
+        expect(channelProperties.gatewayToken).toBeUndefined();
+        expect(channelRootProperties.accounts).toBeDefined();
+        expect(channelRootProperties.gateway).toBeUndefined();
+    });
+
+    it("registers wildcard uiHints for dynamic account token fields", () => {
+        expect(channelConfigUiHints["accounts.*.outboundToken"]).toEqual({
+            sensitive: true,
+            label: "Outbound Token",
+        });
+        expect(channelConfigUiHints["accounts.*.inboundSigningSecret"]).toEqual({
+            sensitive: true,
+            label: "Inbound Signing Secret",
+        });
+        expect(channelConfigUiHints["accounts.*.gateway.token"]).toEqual({
+            sensitive: true,
+            label: "Gateway Token",
         });
     });
 });

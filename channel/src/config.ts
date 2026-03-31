@@ -7,7 +7,12 @@ export {
     AccountConfigSchema,
     GatewayConfigSchema,
 } from "./config/schema.js";
-export { channelAccountConfigSchema, pluginConfigSchema } from "./config/manifest.js";
+export {
+    channelAccountConfigSchema,
+    channelConfigSchema,
+    channelConfigUiHints,
+    pluginConfigSchema,
+} from "./config/manifest.js";
 export {
     describeAgents,
     discoverAgents,

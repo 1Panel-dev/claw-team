@@ -23,10 +23,10 @@ declare module "openclaw/plugin-sdk/core" {
 
         capabilities?: { chatTypes?: Array<"direct" | "group"> };
 
-        // 宿主控制台在 Channel 配置页会读取这里的账号级 schema。
-        // 远程内置 1panel 插件已经证明该字段是有效的，因此本地类型也需要补上。
+        // 宿主控制台会读取这里的 Channel 配置 schema，因此本地类型也要补上。
         configSchema?: {
             schema: any;
+            uiHints?: Record<string, unknown>;
         };
 
         config: {

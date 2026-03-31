@@ -2,7 +2,8 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 
 import {
     CHANNEL_ID,
-    channelAccountConfigSchema,
+    channelConfigSchema,
+    channelConfigUiHints,
     listAccountIds,
     pluginConfigSchema,
     resolveAccount,
@@ -141,9 +142,7 @@ function createChannelPlugin(api: OpenClawPluginApi) {
             capabilities: {
                 chatTypes: ["direct", "group"],
             },
-            configSchema: {
-                schema: channelAccountConfigSchema,
-            },
+            configSchema: { schema: channelConfigSchema, uiHints: channelConfigUiHints },
             config: {
                 listAccountIds,
                 resolveAccount,
