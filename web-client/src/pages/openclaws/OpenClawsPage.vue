@@ -86,7 +86,6 @@
                     <el-button
                       v-if="canEditAgent(row)"
                       link
-                      type="primary"
                       :disabled="pageBusy"
                       @click="openAgentEdit(instance.id, instance.name, row)"
                     >
