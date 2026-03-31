@@ -6,6 +6,7 @@ import {
     createInstance,
     disableInstance,
     enableInstance,
+    fetchInstanceHealth,
     fetchInstances,
     syncOpenClawAgents,
     updateOpenClawInstance,
@@ -42,6 +43,14 @@ export const useOpenClawStore = defineStore("openclaw", {
             } finally {
                 this.loading = false;
             }
+        },
+        async refreshInstanceHealth() {
+            const items = await fetchInstanceHealth();
+            const statusById = new Map(items.map((item) => [item.id, item.status]));
+            this.instances = this.instances.map((instance) => ({
+                ...instance,
+                status: statusById.get(instance.id) ?? instance.status,
+            }));
         },
         async createNewInstance(payload: {
             name: string;

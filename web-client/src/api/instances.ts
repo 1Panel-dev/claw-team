@@ -1,8 +1,13 @@
 import { apiClient } from "@/api/client";
-import type { InstanceReadApi } from "@/types/api/instance";
+import type { InstanceHealthReadApi, InstanceReadApi } from "@/types/api/instance";
 
 export async function fetchInstances(): Promise<InstanceReadApi[]> {
     const response = await apiClient.get<InstanceReadApi[]>("/api/instances");
+    return response.data;
+}
+
+export async function fetchInstanceHealth(): Promise<InstanceHealthReadApi[]> {
+    const response = await apiClient.get<InstanceHealthReadApi[]>("/api/instances/health");
     return response.data;
 }
 

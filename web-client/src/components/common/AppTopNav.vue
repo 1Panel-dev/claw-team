@@ -40,12 +40,6 @@
 </template>
 
 <script setup lang="ts">
-/**
- * 顶部导航从第一阶段就固定好长期产品模块。
- *
- * 即使 OpenClaw、任务、设置目前还只有占位页，
- * 也先把导航定下来，避免后面再大改应用骨架。
- */
 import type { SupportedLocale } from "@/i18n";
 import { useI18n } from "@/composables/useI18n";
 import { useRoute } from "vue-router";
@@ -56,8 +50,6 @@ const route = useRoute();
 const navItems = [
     { labelKey: "nav.messages", to: "/messages" },
     { labelKey: "nav.openclaw", to: "/openclaws" },
-    { labelKey: "nav.tasks", to: "/tasks" },
-    { labelKey: "nav.settings", to: "/settings" },
 ];
 
 function handleLocaleChange(value: string | number | boolean) {
