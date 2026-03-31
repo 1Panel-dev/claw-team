@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
+from src.api.routes.agents import sync_instance_agents as sync_instance_agent_profiles
 from src.models.agent_profile import AgentProfile
 from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
@@ -43,42 +44,20 @@ def fetch_channel_agents(base_url: str) -> list[dict]:
         raise HTTPException(status_code=400, detail="invalid agents response")
     return [item for item in agents_payload if isinstance(item, dict)]
 
-
 def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload: list[dict]) -> tuple[int, list[str]]:
+    """
+    实例同步和 Agent 管理页同步必须复用同一套实现。
+
+    否则一边会清理已删除 Agent 的联系人历史，另一边不会，最后就会出现
+    “Agent 已经 removed，但最近联系人还残留”的不一致状态。
+    """
+    sync_instance_agent_profiles(db, instance, agents_payload)
+
     imported_agent_keys: list[str] = []
     for agent_data in agents_payload:
         agent_key = str(agent_data.get("id") or agent_data.get("openclawAgentRef") or "").strip()
-        display_name = str(agent_data.get("name") or agent_key).strip()
-        if not agent_key:
-            continue
-        agent = db.scalar(
-            select(AgentProfile).where(
-                AgentProfile.instance_id == instance.id,
-                AgentProfile.agent_key == agent_key,
-            )
-        )
-        if agent is None:
-            agent = AgentProfile(
-                instance_id=instance.id,
-                agent_key=agent_key,
-                display_name=display_name,
-                role_name=None,
-                enabled=True,
-                removed_from_openclaw=False,
-            )
-            db.add(agent)
-        else:
-            agent.display_name = display_name
-            agent.removed_from_openclaw = False
-        imported_agent_keys.append(agent_key)
-
-    if imported_agent_keys:
-        imported_set = set(imported_agent_keys)
-        existing_agents = db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance.id)).all()
-        for agent in existing_agents:
-            if agent.agent_key not in imported_set:
-                agent.removed_from_openclaw = True
-
+        if agent_key:
+            imported_agent_keys.append(agent_key)
     return len(imported_agent_keys), imported_agent_keys
 
 

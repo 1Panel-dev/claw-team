@@ -2280,6 +2280,151 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
 
+    def test_instance_sync_agents_also_deletes_removed_agent_contact_history(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw B",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            removed_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="testbot2",
+                display_name="TestBot2",
+                role_name="测试 Bot",
+                enabled=True,
+                ct_id="CTA-0010",
+            )
+            kept_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="main",
+                role_name="助手",
+                enabled=True,
+                ct_id="CTA-0001",
+            )
+            db.add_all([removed_agent, kept_agent])
+            db.flush()
+
+            direct_conversation = Conversation(
+                type="direct",
+                title=f"{instance.name} / {removed_agent.display_name}",
+                direct_instance_id=instance.id,
+                direct_agent_id=removed_agent.id,
+            )
+            dialogue_conversation = Conversation(
+                type="agent_dialogue",
+                title="main ↔ TestBot2",
+            )
+            db.add_all([direct_conversation, dialogue_conversation])
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=dialogue_conversation.id,
+                source_agent_id=kept_agent.id,
+                target_agent_id=removed_agent.id,
+                topic="测试残留清理",
+                status="active",
+                initiator_type="agent",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+            )
+            db.add(dialogue)
+            db.flush()
+
+            direct_message = Message(
+                id="msg_testbot2_direct_1",
+                conversation_id=direct_conversation.id,
+                sender_type="agent",
+                sender_label="TestBot2",
+                content="direct",
+                status="completed",
+            )
+            dialogue_message = Message(
+                id="msg_testbot2_dialogue_1",
+                conversation_id=dialogue_conversation.id,
+                sender_type="agent",
+                sender_label="TestBot2",
+                content="dialogue",
+                status="completed",
+            )
+            db.add_all([direct_message, dialogue_message])
+            db.flush()
+
+            direct_dispatch = MessageDispatch(
+                id="dsp_testbot2_direct_1",
+                message_id=direct_message.id,
+                conversation_id=direct_conversation.id,
+                instance_id=instance.id,
+                agent_id=removed_agent.id,
+                dispatch_mode="direct",
+                status="completed",
+            )
+            dialogue_dispatch = MessageDispatch(
+                id="dsp_testbot2_dialogue_1",
+                message_id=dialogue_message.id,
+                conversation_id=dialogue_conversation.id,
+                instance_id=instance.id,
+                agent_id=removed_agent.id,
+                dispatch_mode="agent_dialogue_relay",
+                status="completed",
+            )
+            db.add_all([direct_dispatch, dialogue_dispatch])
+            db.flush()
+
+            db.add_all(
+                [
+                    MessageCallbackEvent(
+                        dispatch_id=direct_dispatch.id,
+                        event_id="evt_testbot2_direct_1",
+                        event_type="reply.final",
+                        payload_json={"text": "done"},
+                    ),
+                    MessageCallbackEvent(
+                        dispatch_id=dialogue_dispatch.id,
+                        event_id="evt_testbot2_dialogue_1",
+                        event_type="reply.final",
+                        payload_json={"text": "done"},
+                    ),
+                ]
+            )
+            db.commit()
+            instance_id = instance.id
+
+        with patch("src.api.routes.instances.fetch_channel_agents", return_value=[{"id": "main", "name": "main"}]):
+            response = self.client.post(f"/api/instances/{instance_id}/sync-agents")
+
+        self.assertEqual(response.status_code, 200)
+
+        with self.SessionLocal() as db:
+            removed_agent = db.scalar(select(AgentProfile).where(AgentProfile.agent_key == "testbot2"))
+            assert removed_agent is not None
+            self.assertTrue(removed_agent.removed_from_openclaw)
+            self.assertEqual(
+                list(
+                    db.scalars(
+                        select(Conversation.id).where(
+                            (Conversation.direct_agent_id == removed_agent.id)
+                            | (Conversation.title == "main ↔ TestBot2")
+                        )
+                    )
+                ),
+                [],
+            )
+
+        conversations_response = self.client.get("/api/conversations")
+        self.assertEqual(conversations_response.status_code, 200)
+        payload = conversations_response.json()
+        self.assertFalse(any("TestBot2" in (item.get("display_title") or "") for item in payload))
+
     def test_create_group_can_include_initial_members(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(
