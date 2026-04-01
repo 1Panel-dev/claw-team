@@ -1,31 +1,39 @@
+ARG BASE_IMAGE=ghcr.io/1panel-dev/claw-team-base:python3.12-20260401
+
 FROM node:22-bookworm-slim AS web-build
 
-WORKDIR /build/web-client
+COPY web-client /web-client
+WORKDIR /web-client
 
-COPY web-client/package.json web-client/package-lock.json ./
-RUN npm ci
-
-COPY web-client/ ./
-RUN npm run build
+RUN if [ -d "dist" ]; then exit 0; fi \
+    && npm ci \
+    && npm run build
 
 
-FROM python:3.12-slim AS runtime
+FROM ${BASE_IMAGE} AS stage-build
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
+WORKDIR /opt/claw-team-build
+
+COPY scheduler-server/run_dev.py ./scheduler-server/run_dev.py
+COPY scheduler-server/src ./scheduler-server/src
+COPY --from=web-build /web-client/dist ./web
+
+
+FROM ${BASE_IMAGE}
+
+ARG DOCKER_IMAGE_TAG=dev
+ARG BUILD_AT
+ARG GITHUB_COMMIT
+
+ENV CLAW_TEAM_VERSION="${DOCKER_IMAGE_TAG} (build at ${BUILD_AT}, commit: ${GITHUB_COMMIT})" \
     APP_HOST=0.0.0.0 \
     APP_PORT=18080 \
     WEB_DIST_DIR=/app/web
 
 WORKDIR /app/scheduler-server
 
-COPY scheduler-server/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY scheduler-server/run_dev.py ./
-COPY scheduler-server/src ./src
-COPY --from=web-build /build/web-client/dist /app/web
+COPY --from=stage-build /opt/claw-team-build/scheduler-server /app/scheduler-server
+COPY --from=stage-build /opt/claw-team-build/web /app/web
 
 RUN mkdir -p /app/data
 

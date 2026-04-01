@@ -1,0 +1,81 @@
+name: publish-channel
+
+run-name: 发布 channel 包 (${{ github.ref_name }})
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: channel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@^11.5.1
+
+      - name: Validate version and dist-tag
+        id: validate
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          PLUGIN_VERSION=$(node -p "require('./openclaw.plugin.json').version")
+          BRANCH_NAME="${GITHUB_REF_NAME}"
+
+          echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${PACKAGE_VERSION}" != "${PLUGIN_VERSION}" ]]; then
+            echo "package.json version (${PACKAGE_VERSION}) and openclaw.plugin.json version (${PLUGIN_VERSION}) do not match"
+            exit 1
+          fi
+
+          if [[ "${BRANCH_NAME}" == "beta" ]]; then
+            if [[ "${PACKAGE_VERSION}" != *"-beta"* ]]; then
+              echo "beta branch must publish a version containing -beta"
+              exit 1
+            fi
+            echo "npm_dist_tag=beta" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${BRANCH_NAME}" == "main" ]]; then
+            if [[ "${PACKAGE_VERSION}" == *"-beta"* ]]; then
+              echo "main branch cannot publish a beta version"
+              exit 1
+            fi
+            echo "npm_dist_tag=latest" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Only beta and main branches are allowed for publish"
+          exit 1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --tag "${{ steps.validate.outputs.npm_dist_tag }}"

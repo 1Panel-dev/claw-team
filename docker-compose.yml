@@ -1,8 +1,5 @@
 services:
   claw-team:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: 1panel/claw-team:latest
     ports:
       - "18080:18080"
