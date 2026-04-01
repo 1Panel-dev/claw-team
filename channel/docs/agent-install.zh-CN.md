@@ -1,6 +1,6 @@
 # Agent Install 中文版
 
-[English](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/agent-install.en.md)
+[English](./agent-install.en.md)
 
 ## npm 发布版安装步骤
 

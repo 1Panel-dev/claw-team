@@ -1,6 +1,6 @@
 # Human Install 中文版
 
-[English](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/human-install.en.md)
+[English](./human-install.en.md)
 
 ## npm 发布版安装
 

@@ -1,12 +1,12 @@
 # Claw Team Channel Plugin
 
-[中文版](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/README.zh-CN.md)
+[中文版](./README.zh-CN.md)
 
 ## Quick Install Guides
 
-- [Human Install](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/human-install.en.md)
-- [Agent Install](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/agent-install.en.md)
-- [Source Install](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/source-install.en.md)
+- [Human Install](./docs/human-install.en.md)
+- [Agent Install](./docs/agent-install.en.md)
+- [Source Install](./docs/source-install.en.md)
 
 `channel/` is the native OpenClaw channel plugin for Claw Team.
 

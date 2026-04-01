@@ -1,6 +1,6 @@
 # Source Install
 
-[中文版](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/source-install.zh-CN.md)
+[中文版](./source-install.zh-CN.md)
 
 1. Clone the repository.
 

@@ -1,6 +1,6 @@
 # Source Install 中文版
 
-[English](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/source-install.en.md)
+[English](./source-install.en.md)
 
 1. 克隆仓库。
 
