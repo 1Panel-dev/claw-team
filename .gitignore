@@ -35,6 +35,7 @@ coverage/
 
 # Docker
 *.pid
+local/
 
 # Database
 *.db

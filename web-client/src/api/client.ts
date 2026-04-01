@@ -5,8 +5,9 @@
  * 优先都在这里做，而不是散落在页面组件里。
  */
 import axios from "axios";
+import { resolveApiBaseUrl } from "@/api/baseUrl";
 
 export const apiClient = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8080",
+    baseURL: resolveApiBaseUrl(),
     timeout: 10000,
 });

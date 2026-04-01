@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -56,6 +57,7 @@ class Stage1BackendTests(unittest.TestCase):
         Base.metadata.create_all(bind=self.engine)
 
         self.app = create_app()
+        self.original_web_dist_dir = getattr(settings, "web_dist_dir", None)
 
         def override_db():
             db = self.SessionLocal()
@@ -69,6 +71,7 @@ class Stage1BackendTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.app.dependency_overrides.clear()
+        settings.web_dist_dir = self.original_web_dist_dir
         self.engine.dispose()
         self.temp_dir.cleanup()
 
@@ -2504,6 +2507,38 @@ class Stage1BackendTests(unittest.TestCase):
             assert instance is not None
             self.assertEqual(instance.callback_token, payload["credentials"]["outbound_token"])
             self.assertEqual(instance.channel_signing_secret, payload["credentials"]["inbound_signing_secret"])
+
+    def test_settings_default_database_url_uses_persistent_app_data_path(self) -> None:
+        config_module = importlib.import_module("src.core.config")
+        self.assertEqual(config_module.DEFAULT_CONTAINER_DATABASE_URL, "sqlite:////app/data/app.db")
+        self.assertEqual(config_module.DEFAULT_LOCAL_DATABASE_URL, "sqlite:///./data/app.db")
+
+    def test_app_serves_built_web_client_when_dist_directory_exists(self) -> None:
+        web_dist = Path(self.temp_dir.name) / "web-dist"
+        assets_dir = web_dist / "assets"
+        assets_dir.mkdir(parents=True)
+        (web_dist / "index.html").write_text(
+            "<!doctype html><html><body><div id='app'>claw-team</div></body></html>",
+            encoding="utf-8",
+        )
+        (assets_dir / "app.js").write_text("console.log('ok')", encoding="utf-8")
+
+        settings.web_dist_dir = str(web_dist)
+        app = create_app()
+        client = TestClient(app)
+
+        root_response = client.get("/")
+        route_response = client.get("/messages/conversation/1")
+        asset_response = client.get("/assets/app.js")
+        api_response = client.get("/api/health")
+
+        self.assertEqual(root_response.status_code, 200)
+        self.assertIn("claw-team", root_response.text)
+        self.assertEqual(route_response.status_code, 200)
+        self.assertIn("claw-team", route_response.text)
+        self.assertEqual(asset_response.status_code, 200)
+        self.assertIn("console.log", asset_response.text)
+        self.assertEqual(api_response.status_code, 200)
 
     def test_get_instance_credentials_returns_current_copy_values(self) -> None:
         with self.SessionLocal() as db:

@@ -8,15 +8,15 @@
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 
+import { resolveWebSocketBaseUrl } from "@/api/baseUrl";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 
 function resolveWebSocketUrl() {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8080";
     const transport = import.meta.env.VITE_MESSAGE_TRANSPORT ?? "websocket";
     return {
         enabled: transport === "websocket",
-        baseUrl: apiBaseUrl.replace(/^http/i, "ws"),
+        baseUrl: resolveWebSocketBaseUrl(),
     };
 }
 

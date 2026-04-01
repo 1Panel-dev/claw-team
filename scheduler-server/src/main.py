@@ -2,12 +2,44 @@
 这是 scheduler-server 的 FastAPI 入口。
 它负责组装配置、数据库和全部第一阶段 API 路由。
 """
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import address_book, agent_dialogues, agents, callbacks, conversations, groups, health, instances, tasks, ws
+from src.core.config import settings
 from src.core.db import Base, engine, ensure_runtime_schema
 import src.models  # noqa: F401
+
+
+def _configure_web_client_routes(app: FastAPI) -> None:
+    web_dist_dir = Path(settings.web_dist_dir).expanduser()
+    index_file = web_dist_dir / "index.html"
+    if not index_file.is_file():
+        return
+
+    @app.get("/", include_in_schema=False)
+    def serve_web_index() -> FileResponse:
+        return FileResponse(index_file)
+
+    @app.get("/assets/{asset_path:path}", include_in_schema=False)
+    def serve_web_asset(asset_path: str) -> FileResponse:
+        asset_file = web_dist_dir / "assets" / asset_path
+        if not asset_file.is_file():
+            raise HTTPException(status_code=404)
+        return FileResponse(asset_file)
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_web_app(full_path: str) -> FileResponse:
+        if full_path.startswith(("api/", "ws")):
+            raise HTTPException(status_code=404)
+
+        target = web_dist_dir / full_path
+        if target.is_file():
+            return FileResponse(target)
+        return FileResponse(index_file)
 
 
 def create_app() -> FastAPI:
@@ -43,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
     app.include_router(callbacks.router)
     app.include_router(ws.router)
+    _configure_web_client_routes(app)
 
     return app
 

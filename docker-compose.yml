@@ -1,0 +1,14 @@
+services:
+  claw-team:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 1panel/claw-team:latest
+    ports:
+      - "18080:18080"
+    volumes:
+      - claw-team-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  claw-team-data:

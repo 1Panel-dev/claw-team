@@ -4,6 +4,17 @@
 """
 from pydantic import BaseModel
 import os
+from pathlib import Path
+
+DEFAULT_CONTAINER_DATABASE_URL = "sqlite:////app/data/app.db"
+DEFAULT_LOCAL_DATABASE_URL = "sqlite:///./data/app.db"
+DEFAULT_WEB_DIST_DIR = "/app/web"
+
+
+def _default_database_url() -> str:
+    if Path("/app").exists():
+        return DEFAULT_CONTAINER_DATABASE_URL
+    return DEFAULT_LOCAL_DATABASE_URL
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -21,7 +32,8 @@ class Settings(BaseModel):
     app_env: str = os.getenv("APP_ENV", "development")
     app_host: str = os.getenv("APP_HOST", "127.0.0.1")
     app_port: int = int(os.getenv("APP_PORT", "8080"))
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
+    database_url: str = os.getenv("DATABASE_URL", _default_database_url())
+    web_dist_dir: str = os.getenv("WEB_DIST_DIR", DEFAULT_WEB_DIST_DIR)
     default_channel_account_id: str = os.getenv("DEFAULT_CHANNEL_ACCOUNT_ID", "default")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     # 远程联调阶段，OpenClaw 的 channel 走的是自签证书 HTTPS。
