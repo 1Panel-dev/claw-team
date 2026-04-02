@@ -26,10 +26,25 @@ Common path:
 ~/.openclaw/openclaw.json
 ```
 
-4. Instruct the user to add the following config to `channels.claw-team.accounts.default` and `skills`.
+4. Instruct the user to add the following config to `hooks.internal`, `channels.claw-team.accounts.default`, and `skills`.
 
 ```json
 {
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "load": {
+        "extraDirs": [
+          "/home/node/.openclaw/extensions/claw-team/hooks"
+        ]
+      },
+      "entries": {
+        "webchat-mirror": {
+          "enabled": true
+        }
+      }
+    }
+  },
   "skills": {
     "load": {
       "extraDirs": [
@@ -67,6 +82,8 @@ Common path:
   }
 }
 ```
+
+The `hooks.internal` block is required. Without it, OpenClaw Web UI messages will not be mirrored back into Claw Team.
 
 5. After the user finishes the config, instruct the user to restart the Gateway.
 

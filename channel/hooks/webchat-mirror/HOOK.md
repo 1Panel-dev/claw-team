@@ -39,7 +39,17 @@ This hook reads the Claw Team scheduler address and token from the local
 - `channels.claw-team.accounts.default.baseUrl`
 - `channels.claw-team.accounts.default.outboundToken`
 
+To make the hook actually load and run, `openclaw.json` must also enable
+internal hooks and make this directory discoverable:
+
+- `hooks.internal.enabled = true`
+- `hooks.internal.entries.webchat-mirror.enabled = true`
+- `hooks.internal.load.extraDirs` must include the parent hooks directory
+
 ## Notes
 
-- The hook must be enabled through `hooks.internal.entries.webchat-mirror.enabled`
-- The hook directory must be discoverable through `hooks.internal.load.extraDirs`
+- Without `hooks.internal.enabled = true`, this hook will not run.
+- Without `hooks.internal.entries.webchat-mirror.enabled = true`, OpenClaw Web UI
+  messages will not be mirrored into Claw Team.
+- Without `hooks.internal.load.extraDirs`, the host will not discover this hook
+  when it is installed outside the default built-in hooks location.

@@ -26,10 +26,25 @@ openclaw plugins enable claw-team
 ~/.openclaw/openclaw.json
 ```
 
-4. 指导用户把下面这段配置写入 `channels.claw-team.accounts.default` 和 `skills`。
+4. 指导用户把下面这段配置写入 `hooks.internal`、`channels.claw-team.accounts.default` 和 `skills`。
 
 ```json
 {
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "load": {
+        "extraDirs": [
+          "/home/node/.openclaw/extensions/claw-team/hooks"
+        ]
+      },
+      "entries": {
+        "webchat-mirror": {
+          "enabled": true
+        }
+      }
+    }
+  },
   "skills": {
     "load": {
       "extraDirs": [
@@ -67,6 +82,8 @@ openclaw plugins enable claw-team
   }
 }
 ```
+
+`hooks.internal` 这一段是必须的。缺少这段时，OpenClaw Web UI 里直接发送的消息不会回流到 Claw Team。
 
 5. 在用户完成配置后，指导用户重启 Gateway。
 

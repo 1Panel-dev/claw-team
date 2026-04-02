@@ -54,6 +54,21 @@ openclaw plugins enable claw-team
 
 ```json
 {
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "load": {
+        "extraDirs": [
+          "/home/node/.openclaw/extensions/claw-team/hooks"
+        ]
+      },
+      "entries": {
+        "webchat-mirror": {
+          "enabled": true
+        }
+      }
+    }
+  },
   "skills": {
     "load": {
       "extraDirs": [
@@ -91,6 +106,8 @@ openclaw plugins enable claw-team
   }
 }
 ```
+
+`hooks.internal` 这一段是必须的。缺少这段时，OpenClaw Web UI 里直接发送的消息不会回流到 Claw Team。
 
 9. 重启 Gateway。
 
