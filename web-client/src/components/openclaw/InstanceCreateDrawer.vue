@@ -160,8 +160,24 @@ async function copyCredential(key: keyof InstanceCredentialsReadApi) {
     if (!props.credentials) {
         return;
     }
+    const value = props.credentials[key];
     try {
-        await navigator.clipboard.writeText(props.credentials[key]);
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+        } else {
+            const textarea = document.createElement("textarea");
+            textarea.value = value;
+            textarea.setAttribute("readonly", "true");
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand("copy");
+            document.body.removeChild(textarea);
+            if (!copied) {
+                throw new Error(t("openclaw.copyFailed"));
+            }
+        }
         ElMessage.success(t("openclaw.copySuccess"));
     } catch (error) {
         ElMessage.error(error instanceof Error ? error.message : String(error));

@@ -158,6 +158,7 @@ export const zhCN = {
         outboundToken: "Outbound Token",
         inboundSigningSecret: "Inbound Signing Secret",
         copySuccess: "已复制",
+        copyFailed: "复制失败",
         agentDrawerTitle: "在 {name} 下新增 Agent",
         agentDrawerEditTitle: "编辑 {name} 下的 Agent",
         agentDrawerHint: "Agent 是调度中心中的可路由对象。下面 4 个 workspace 文件默认折叠；创建时如果某个文件留空，就不提交这个文件，保持 OpenClaw 自己的默认行为。",

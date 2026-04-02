@@ -16,8 +16,7 @@ function detectBrowserLocale(): SupportedLocale {
     if (typeof navigator === "undefined") {
         return "en";
     }
-    const candidates = [...(navigator.languages ?? []), navigator.language].filter(Boolean);
-    return candidates.some((item) => item.toLowerCase().startsWith("zh")) ? "zh-CN" : "en";
+    return navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 }
 
 function resolveInitialLocale(): SupportedLocale {
