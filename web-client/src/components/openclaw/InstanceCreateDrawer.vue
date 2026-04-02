@@ -59,7 +59,6 @@
  * 这样能尽快把实例管理链路补齐，而不把高级配置过早塞进 UI。
  */
 import { computed, reactive, watch } from "vue";
-import { ElMessage } from "element-plus/es/components/message/index";
 import { DocumentCopy } from "@element-plus/icons-vue";
 import { useI18n } from "@/composables/useI18n";
 import type { InstanceCredentialsReadApi } from "@/types/api/instance";

@@ -35,27 +35,52 @@
                 <div class="openclaws-page__instance-meta">{{ instance.channel_base_url }}</div>
               </div>
 
-              <el-space wrap>
-                <el-button type="primary" :disabled="pageBusy" @click="openAgentCreate(instance.id, instance.name)">
-                  {{ t("openclaw.addAgent") }}
-                </el-button>
-                <el-button
-                  :loading="savingId === `instance:${instance.id}:sync`"
-                  :disabled="pageBusy"
-                  @click="syncAgents(instance.id, instance.name)"
+              <el-space wrap class="openclaws-page__instance-actions">
+                <el-tooltip :content="t('openclaw.addAgent')" placement="top">
+                  <el-button type="primary" circle :disabled="pageBusy" @click="openAgentCreate(instance.id, instance.name)">
+                    <el-icon><Plus /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip :content="t('openclaw.syncAgents')" placement="top">
+                  <el-button
+                    circle
+                    :loading="savingId === `instance:${instance.id}:sync`"
+                    :disabled="pageBusy"
+                    @click="syncAgents(instance.id, instance.name)"
+                  >
+                    <el-icon><RefreshRight /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip :content="t('openclaw.editInstance')" placement="top">
+                  <el-button circle :disabled="pageBusy" @click="openInstanceEdit(instance)">
+                    <el-icon><EditPen /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip
+                  :content="instance.status === 'active' ? t('openclaw.disable') : t('openclaw.enable')"
+                  placement="top"
                 >
-                  {{ t("openclaw.syncAgents") }}
-                </el-button>
-                <el-button :disabled="pageBusy" @click="openInstanceEdit(instance)">
-                  {{ t("openclaw.editInstance") }}
-                </el-button>
-                <el-button
-                  :type="instance.status === 'active' ? 'warning' : 'success'"
-                  :disabled="pageBusy"
-                  @click="toggleInstance(instance.id, instance.status !== 'active')"
-                >
-                  {{ instance.status === "active" ? t("openclaw.disable") : t("openclaw.enable") }}
-                </el-button>
+                  <el-button
+                    :type="instance.status === 'active' ? 'warning' : 'success'"
+                    circle
+                    :disabled="pageBusy"
+                    @click="toggleInstance(instance.id, instance.status !== 'active')"
+                  >
+                    <el-icon>
+                      <component :is="instance.status === 'active' ? SwitchButton : VideoPlay" />
+                    </el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip :content="t('openclaw.deleteInstance')" placement="top">
+                  <el-button
+                    type="danger"
+                    circle
+                    :disabled="pageBusy"
+                    @click="confirmDeleteInstance(instance)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </el-tooltip>
               </el-space>
             </div>
 
@@ -139,8 +164,8 @@
 </template>
 
 <script setup lang="ts">
+import { Delete, EditPen, Plus, RefreshRight, SwitchButton, VideoPlay } from "@element-plus/icons-vue";
 import {computed, onBeforeUnmount, onMounted, ref} from "vue";
-import { ElMessage } from "element-plus/es/components/message/index";
 
 import AgentCreateDrawer from "@/components/openclaw/AgentCreateDrawer.vue";
 import InstanceCreateDrawer from "@/components/openclaw/InstanceCreateDrawer.vue";
@@ -260,6 +285,29 @@ function stopInstancePolling() {
 
 async function toggleInstance(instanceId: number, enable: boolean) {
   await openClawStore.setInstanceEnabled(instanceId, enable);
+}
+
+async function confirmDeleteInstance(instance: InstanceReadApi) {
+  try {
+    await ElMessageBox.confirm(
+      t("openclaw.deleteInstanceConfirm", {name: instance.name}),
+      t("openclaw.deleteInstanceTitle"),
+      {
+        type: "warning",
+        confirmButtonText: t("openclaw.confirmDeleteInstance"),
+        cancelButtonText: t("common.cancel"),
+      },
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    await openClawStore.deleteExistingInstance(instance.id);
+    ElMessage.success(t("openclaw.deleteInstanceSuccess", {name: instance.name}));
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function toggleAgent(agentId: number, enable: boolean) {
@@ -491,6 +539,10 @@ function handleAgentSubmit(
 .openclaws-page__instance {
   display: grid;
   gap: var(--space-3);
+}
+
+.openclaws-page__instance-actions {
+  align-items: center;
 }
 
 .openclaws-page__instance-header {

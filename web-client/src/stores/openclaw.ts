@@ -4,6 +4,7 @@ import { createAgent, disableAgent, enableAgent, fetchAgentProfile, fetchAgents,
 import {
     connectOpenClaw,
     createInstance,
+    deleteInstance,
     disableInstance,
     enableInstance,
     fetchInstanceCredentials,
@@ -124,6 +125,15 @@ export const useOpenClawStore = defineStore("openclaw", {
             this.savingId = `instance:${instanceId}`;
             try {
                 await (enabled ? enableInstance(instanceId) : disableInstance(instanceId));
+                await this.loadInstances();
+            } finally {
+                this.savingId = null;
+            }
+        },
+        async deleteExistingInstance(instanceId: number) {
+            this.savingId = `instance:${instanceId}:delete`;
+            try {
+                await deleteInstance(instanceId);
                 await this.loadInstances();
             } finally {
                 this.savingId = null;

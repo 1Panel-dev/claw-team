@@ -11,3 +11,23 @@ export const apiClient = axios.create({
     baseURL: resolveApiBaseUrl(),
     timeout: 10000,
 });
+
+apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const message = error?.response?.data?.message;
+        const detail = error?.response?.data?.detail;
+        const fallbackMessage = error?.message;
+
+        if (typeof message === "string" && message.trim()) {
+            return Promise.reject(new Error(message));
+        }
+        if (typeof detail === "string" && detail.trim()) {
+            return Promise.reject(new Error(detail));
+        }
+        if (typeof fallbackMessage === "string" && fallbackMessage.trim()) {
+            return Promise.reject(new Error(fallbackMessage));
+        }
+        return Promise.reject(new Error("Request failed"));
+    },
+);
