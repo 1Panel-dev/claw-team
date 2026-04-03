@@ -1,9 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
     findAssistantReplyForTranscriptUser,
     findMirrorableMessagesForTranscriptUser,
-} from "../../hooks/webchat-mirror/handler";
+    registerWebchatTranscriptMirror,
+} from "../openclaw/webchatMirror.js";
+import {
+    clearAllLocalOriginSessionsForTest,
+    markLocalOriginSession,
+} from "../openclaw/mirrorOriginRegistry.js";
+
+function createApiMock() {
+    const handlers = new Map<string, (event: any, ctx?: any) => Promise<any> | any>();
+    return {
+        handlers,
+        api: {
+            config: {
+                channels: {
+                    "claw-team": {
+                        accounts: {
+                            default: {
+                                baseUrl: "https://mirror.example.com",
+                                outboundToken: "token-123",
+                            },
+                        },
+                    },
+                },
+            },
+            on: (hookName: string, handler: (event: any, ctx?: any) => Promise<any> | any) => {
+                handlers.set(hookName, handler);
+            },
+        },
+    };
+}
 
 describe("findAssistantReplyForTranscriptUser", () => {
     it("returns the assistant reply that belongs to the specified transcript user message", () => {
@@ -183,5 +212,276 @@ describe("findAssistantReplyForTranscriptUser", () => {
                 isTerminalAssistant: true,
             },
         ]);
+    });
+});
+
+describe("registerWebchatTranscriptMirror", () => {
+    const fetchMock = vi.fn();
+    const logger = {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+    } as any;
+
+    beforeEach(() => {
+        fetchMock.mockReset();
+        fetchMock.mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: async () => "",
+        });
+        vi.stubGlobal("fetch", fetchMock);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        clearAllLocalOriginSessionsForTest();
+    });
+
+    it("mirrors a webchat user message after before_dispatch resolves the sessionKey", async () => {
+        const { api, handlers } = createApiMock();
+
+        registerWebchatTranscriptMirror(api as any, logger);
+
+        await handlers.get("message_received")?.(
+            {
+                from: "webchat-user",
+                content: "测试用户输入",
+                metadata: {
+                    messageId: "webchat-msg-001",
+                },
+            },
+            {
+                channelId: "webchat",
+            },
+        );
+
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        await handlers.get("before_dispatch")?.(
+            {
+                content: "测试用户输入",
+                sessionKey: "agent:main:main",
+            },
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenLastCalledWith(
+            "https://mirror.example.com/api/v1/claw-team/webchat-mirror",
+            expect.objectContaining({
+                method: "POST",
+                body: expect.any(String),
+            }),
+        );
+        const payload = JSON.parse(fetchMock.mock.calls.at(-1)?.[1].body as string);
+        expect(payload).toMatchObject({
+            channelId: "webchat",
+            sessionKey: "agent:main:main",
+            messageId: "webchat-msg-001",
+            senderType: "user",
+            content: "测试用户输入",
+        });
+        expect(typeof payload.timestamp).toBe("number");
+    });
+
+    it("avoids duplicating final assistant/tool-result writes and keeps tool flow mirroring", async () => {
+        const { api, handlers } = createApiMock();
+
+        registerWebchatTranscriptMirror(api as any, logger);
+
+        await handlers.get("before_tool_call")?.(
+            {
+                toolName: "sessions_history",
+                toolCallId: "call-001",
+                params: {
+                    sessionKey: "agent:main:main",
+                    limit: 20,
+                },
+            },
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+                toolName: "sessions_history",
+                toolCallId: "call-001",
+            },
+        );
+
+        await handlers.get("tool_result_persist")?.(
+            {
+                toolName: "sessions_history",
+                toolCallId: "call-001",
+                message: {
+                    role: "toolResult",
+                    toolName: "sessions_history",
+                    details: {
+                        status: "error",
+                    },
+                    content: [{ type: "text", text: "tool failed" }],
+                },
+            },
+            {
+                sessionKey: "agent:main:main",
+                toolName: "sessions_history",
+                toolCallId: "call-001",
+            },
+        );
+
+        await handlers.get("before_message_write")?.(
+            {
+                sessionKey: "agent:main:main",
+                message: {
+                    role: "assistant",
+                    stopReason: "toolUse",
+                    content: [
+                        { type: "thinking", text: "hidden" },
+                        { type: "text", text: "assistant pre-tool note" },
+                        { type: "toolCall", name: "sessions_history", arguments: { limit: 20 } },
+                    ],
+                },
+            },
+            {
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        await handlers.get("before_message_write")?.(
+            {
+                sessionKey: "agent:main:main",
+                message: {
+                    role: "toolResult",
+                    toolName: "sessions_history",
+                    content: [{ type: "text", text: "duplicate tool result write" }],
+                    details: { status: "completed" },
+                },
+            },
+            {
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        await handlers.get("before_message_write")?.(
+            {
+                sessionKey: "agent:main:main",
+                message: {
+                    role: "assistant",
+                    stopReason: "stop",
+                    content: [{ type: "text", text: "duplicate final assistant write" }],
+                },
+            },
+            {
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        await handlers.get("llm_output")?.(
+            {
+                runId: "run-001",
+                sessionId: "session-001",
+                provider: "custom",
+                model: "qwen3.6-plus",
+                assistantTexts: ["intermediate assistant output", "assistant final output"],
+            },
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        const payloads = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body as string));
+
+        expect(payloads).toEqual([
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+                messageId: "tool-call:agent:main:main:call-001",
+                senderType: "assistant",
+                content:
+                    '[[tool:sessions_history|running|{\n  "sessionKey": "agent:main:main",\n  "limit": 20\n}]]',
+                timestamp: expect.any(Number),
+            },
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+                messageId: "tool-result:agent:main:main:call-001",
+                senderType: "assistant",
+                content: "[[tool:sessions_history|failed|tool failed\n\n{\n  \"status\": \"error\"\n}]]",
+                timestamp: expect.any(Number),
+            },
+            expect.objectContaining({
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+                senderType: "assistant",
+                content: "assistant pre-tool note",
+                timestamp: expect.any(Number),
+            }),
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+                messageId: "llm-output:agent:main:main:run-001:1",
+                senderType: "assistant",
+                content: "assistant final output",
+                timestamp: expect.any(Number),
+            },
+        ]);
+        expect(payloads[2].messageId).toMatch(/^transcript-write:agent:main:main:assistant:/);
+        expect(payloads.some((payload) => String(payload.content).includes("duplicate tool result write"))).toBe(false);
+        expect(payloads.some((payload) => String(payload.content).includes("duplicate final assistant write"))).toBe(false);
+        expect(payloads.some((payload) => String(payload.content).includes("[[event:agent_end|"))).toBe(false);
+        expect(payloads.some((payload) => String(payload.content).includes("intermediate assistant output"))).toBe(false);
+        expect(payloads.every((payload) => typeof payload.timestamp === "number")).toBe(true);
+    });
+
+    it("keeps tool-process mirror events for locally-originated claw-team direct turns but suppresses the final llm output", async () => {
+        const { api, handlers } = createApiMock();
+        registerWebchatTranscriptMirror(api as any, logger);
+
+        markLocalOriginSession("agent:main:main");
+
+        await handlers.get("before_tool_call")?.(
+            {
+                toolName: "weather",
+                toolCallId: "call-local-1",
+                params: { location: "Beijing" },
+            },
+            {
+                sessionKey: "agent:main:main",
+                toolName: "weather",
+                toolCallId: "call-local-1",
+            },
+        );
+
+        await handlers.get("llm_output")?.(
+            {
+                runId: "run-local-1",
+                sessionId: "session-local-1",
+                provider: "custom",
+                model: "qwen3.6-plus",
+                assistantTexts: ["local final output"],
+            },
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]?.[0]).toBe("https://mirror.example.com/api/v1/claw-team/webchat-mirror");
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                authorization: "Bearer token-123",
+            },
+        });
+        expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}"))).toMatchObject({
+            channelId: "webchat",
+            sessionKey: "agent:main:main",
+            senderType: "assistant",
+            messageId: "tool-call:agent:main:main:call-local-1",
+        });
     });
 });

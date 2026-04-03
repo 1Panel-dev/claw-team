@@ -197,21 +197,6 @@ function buildOpenClawConfig(maskSecrets: boolean) {
     }
     const backendBaseUrl = resolveBackendBaseUrl();
     return JSON.stringify({
-        hooks: {
-            internal: {
-                enabled: true,
-                load: {
-                    extraDirs: [
-                        "/home/node/.openclaw/extensions/claw-team/hooks",
-                    ],
-                },
-                entries: {
-                    "webchat-mirror": {
-                        enabled: true,
-                    },
-                },
-            },
-        },
         skills: {
             load: {
                 extraDirs: [

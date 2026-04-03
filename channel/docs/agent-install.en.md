@@ -40,7 +40,6 @@ Only after that will the `OpenClaw JSON Config` become available to copy.
 
 The client will generate the actual config snippet for:
 
-- `hooks.internal`
 - `skills`
 - `channels.claw-team.accounts.default.baseUrl`
 - `outboundToken`
@@ -62,8 +61,7 @@ Common path:
 Notes:
 
 - Do not overwrite the whole file.
-- If `hooks`, `skills`, or `channels` already exist in `openclaw.json`, review and merge them carefully by hand.
-- The `hooks.internal` block is required. Without it, OpenClaw Web UI messages will not be mirrored back into Claw Team.
+- If `skills` or `channels` already exist in `openclaw.json`, review and merge them carefully by hand.
 
 9. After the user finishes the config, instruct the user to restart the Gateway.
 

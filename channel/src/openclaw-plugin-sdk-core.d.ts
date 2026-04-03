@@ -87,9 +87,22 @@ declare module "openclaw/plugin-sdk/core" {
         };
         registrationMode?: "full" | "setup";
         runtime?: any;
+        on?: <K extends string>(
+            hookName: K,
+            handler: (event: any, ctx: any) => Promise<any> | any,
+            opts?: { priority?: number },
+        ) => void;
 
         // registerChannel/registerHttpRoute 是当前插件最关键的两个宿主扩展点。
         registerChannel: (args: { plugin: ChannelPlugin<any> }) => void;
+        registerHook?: (
+            event: string,
+            handler: (event: any) => Promise<any> | any,
+            opts?: {
+                name?: string;
+                description?: string;
+            },
+        ) => void;
         registerHttpRoute: (args: {
             path: string;
             auth: "gateway" | "plugin";

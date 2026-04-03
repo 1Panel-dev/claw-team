@@ -2151,6 +2151,78 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(mirrored["source"], "webchat")
         self.assertEqual(mirrored["content"], "大兴天气")
 
+    def test_webchat_mirror_uses_payload_timestamp_for_created_at_and_ordering(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw A / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+
+        later_ms = 1_700_000_000_000
+        earlier_ms = later_ms - 60_000
+        headers = {"Authorization": "Bearer callback-token-123"}
+
+        first = self.client.post(
+            "/api/v1/claw-team/webchat-mirror",
+            headers=headers,
+            json={
+                "channelId": "webchat",
+                "sessionKey": "agent:main:main",
+                "messageId": "webchat-msg-later",
+                "senderType": "assistant",
+                "content": "较晚的消息",
+                "timestamp": later_ms,
+            },
+        )
+        second = self.client.post(
+            "/api/v1/claw-team/webchat-mirror",
+            headers=headers,
+            json={
+                "channelId": "webchat",
+                "sessionKey": "agent:main:main",
+                "messageId": "webchat-msg-earlier",
+                "senderType": "assistant",
+                "content": "较早的消息",
+                "timestamp": earlier_ms,
+            },
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+
+        messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(messages_response.status_code, 200)
+        messages_payload = messages_response.json()
+        self.assertEqual([item["content"] for item in messages_payload["messages"]], ["较早的消息", "较晚的消息"])
+        self.assertTrue(messages_payload["messages"][0]["created_at"].startswith("2023-11-14T22:12:20"))
+        self.assertTrue(messages_payload["messages"][1]["created_at"].startswith("2023-11-14T22:13:20"))
+
     def test_callback_is_idempotent_for_duplicate_reply_final(self) -> None:
         """
         同一个 reply.final 重复投递时，不应重复生成 agent 消息，也不应重复写 callback event。

@@ -40,7 +40,6 @@ openclaw plugins enable claw-team
 
 这时客户端会自动生成实际可用的配置内容，包括：
 
-- `hooks.internal`
 - `skills`
 - `channels.claw-team.accounts.default.baseUrl`
 - `outboundToken`
@@ -62,8 +61,7 @@ openclaw plugins enable claw-team
 注意：
 
 - 不要把整个文件直接覆盖掉。
-- 如果 `openclaw.json` 里已经存在 `hooks`、`skills` 或 `channels`，请务必先仔细检查，再手动合并。
-- `hooks.internal` 这一段是必须的。缺少这段时，OpenClaw Web UI 里直接发送的消息不会回流到 Claw Team。
+- 如果 `openclaw.json` 里已经存在 `skills` 或 `channels`，请务必先仔细检查，再手动合并。
 
 9. 在用户完成配置后，指导用户重启 Gateway。
 
