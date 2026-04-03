@@ -41,17 +41,17 @@ function toAgentDescriptor(agentId: string, displayName?: string): AgentDescript
     };
 }
 
-function findListedAgent(agentId: string): AgentDescriptor | undefined {
-    return listRealOpenClawAgents().find((item) => item.id === agentId);
+async function findListedAgent(agentId: string): Promise<AgentDescriptor | undefined> {
+    return (await listRealOpenClawAgents()).find((item) => item.id === agentId);
 }
 
-function setAgentDisplayName(agentId: string, displayName?: string): void {
+async function setAgentDisplayName(agentId: string, displayName?: string): Promise<void> {
     const normalizedName = displayName?.trim();
     if (!normalizedName || normalizedName === agentId) {
         return;
     }
 
-    runOpenClawCli([
+    await runOpenClawCli([
         "agents",
         "set-identity",
         "--agent",
@@ -62,10 +62,12 @@ function setAgentDisplayName(agentId: string, displayName?: string): void {
     ]);
 }
 
-export function listRealOpenClawAgents(): AgentDescriptor[] {
-    const output = runOpenClawCli(["agents", "list", "--json"]);
+export async function listRealOpenClawAgents(): Promise<AgentDescriptor[]> {
+    const output = await runOpenClawCli(["agents", "list", "--json"]);
     const parsed = extractJsonArray(output);
-    if (!parsed) return [];
+    if (!parsed) {
+        return [];
+    }
 
     return parsed
         .map((item) => item as OpenClawCliAgent)
@@ -73,14 +75,14 @@ export function listRealOpenClawAgents(): AgentDescriptor[] {
         .map((item) => toAgentDescriptor(item.id, item.name));
 }
 
-export function createRealOpenClawAgent(params: {
+export async function createRealOpenClawAgent(params: {
     agentId: string;
     displayName: string;
     profileFiles?: Partial<AgentProfileFiles>;
     cfg?: OpenClawAgentWorkspaceConfig;
-}): AgentDescriptor {
+}): Promise<AgentDescriptor> {
     // 先真实创建，再回查列表拿宿主最终状态，避免只信 add 命令的瞬时输出。
-    const addOutput = runOpenClawCli([
+    const addOutput = await runOpenClawCli([
         "agents",
         "add",
         params.agentId,
@@ -95,7 +97,7 @@ export function createRealOpenClawAgent(params: {
         throw new Error("openclaw_agent_create_failed");
     }
 
-    setAgentDisplayName(agentId, params.displayName);
+    await setAgentDisplayName(agentId, params.displayName);
 
     // 真实 Agent 创建完成后，再把 workspace 里的 profile 文件补齐。
     writeAgentProfileFiles({
@@ -104,7 +106,7 @@ export function createRealOpenClawAgent(params: {
         cfg: params.cfg,
     });
 
-    return findListedAgent(agentId) ?? toAgentDescriptor(agentId, params.displayName);
+    return (await findListedAgent(agentId)) ?? toAgentDescriptor(agentId, params.displayName);
 }
 
 export function getRealOpenClawAgentProfile(params: {
@@ -114,18 +116,18 @@ export function getRealOpenClawAgentProfile(params: {
     return readAgentProfileFiles(params);
 }
 
-export function updateRealOpenClawAgent(params: {
+export async function updateRealOpenClawAgent(params: {
     agentId: string;
     displayName?: string;
     profileFiles?: Partial<AgentProfileFiles>;
     cfg?: OpenClawAgentWorkspaceConfig;
-}): AgentDescriptor {
+}): Promise<AgentDescriptor> {
     const agentId = params.agentId.trim();
     if (!agentId) {
         throw new Error("openclaw_agent_update_failed");
     }
 
-    setAgentDisplayName(agentId, params.displayName);
+    await setAgentDisplayName(agentId, params.displayName);
 
     // 编辑链必须保持 patch 语义：未传的文件保持原样，不要回退成默认模板。
     const currentFiles = readAgentProfileFiles({
@@ -140,5 +142,5 @@ export function updateRealOpenClawAgent(params: {
         cfg: params.cfg,
     });
 
-    return findListedAgent(agentId) ?? toAgentDescriptor(agentId, params.displayName);
+    return (await findListedAgent(agentId)) ?? toAgentDescriptor(agentId, params.displayName);
 }

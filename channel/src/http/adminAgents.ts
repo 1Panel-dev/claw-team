@@ -53,7 +53,7 @@ export async function handleAdminAgentRoutes(params: {
         }
 
         try {
-            const agent = createRealOpenClawAgent({
+            const agent = await createRealOpenClawAgent({
                 agentId: parsed.data.agentKey,
                 displayName: parsed.data.displayName,
                 profileFiles: {

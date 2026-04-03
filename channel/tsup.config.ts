@@ -7,5 +7,6 @@ export default defineConfig({
     dts: true,
     sourcemap: true,
     clean: true,
+    noExternal: ["zod", "ioredis", "undici"],
     external: ["openclaw", /^openclaw\//],
 });
