@@ -15,7 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     APP_HOST=0.0.0.0 \
     APP_PORT=18080 \
-    WEB_DIST_DIR=/app/web
+    WEB_DIST_DIR=/opt/claw-team-web
 
 WORKDIR /app/scheduler-server
 
@@ -23,7 +23,7 @@ COPY scheduler-server/requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt \
     && rm -f requirements.txt \
-    && mkdir -p /app/data /app/web
+    && mkdir -p /opt/claw-team /opt/claw-team-web
 
 EXPOSE 18080
-VOLUME ["/app/data"]
+VOLUME ["/opt/claw-team"]

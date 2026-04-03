@@ -4,7 +4,7 @@ services:
     ports:
       - "18080:18080"
     volumes:
-      - claw-team-data:/app/data
+      - claw-team-data:/opt/claw-team
     restart: unless-stopped
 
 volumes:

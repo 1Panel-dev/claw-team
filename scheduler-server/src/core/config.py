@@ -6,9 +6,9 @@ from pydantic import BaseModel
 import os
 from pathlib import Path
 
-DEFAULT_CONTAINER_DATABASE_URL = "sqlite:////app/data/app.db"
+DEFAULT_CONTAINER_DATABASE_URL = "sqlite:////opt/claw-team/app.db"
 DEFAULT_LOCAL_DATABASE_URL = "sqlite:///./data/app.db"
-DEFAULT_WEB_DIST_DIR = "/app/web"
+DEFAULT_WEB_DIST_DIR = "/opt/claw-team-web"
 
 
 def _default_database_url() -> str:

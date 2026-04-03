@@ -28,16 +28,16 @@ ARG GITHUB_COMMIT
 ENV CLAW_TEAM_VERSION="${DOCKER_IMAGE_TAG} (build at ${BUILD_AT}, commit: ${GITHUB_COMMIT})" \
     APP_HOST=0.0.0.0 \
     APP_PORT=18080 \
-    WEB_DIST_DIR=/app/web
+    WEB_DIST_DIR=/opt/claw-team-web
 
 WORKDIR /app/scheduler-server
 
 COPY --from=stage-build /opt/claw-team-build/scheduler-server /app/scheduler-server
-COPY --from=stage-build /opt/claw-team-build/web /app/web
+COPY --from=stage-build /opt/claw-team-build/web /opt/claw-team-web
 
-RUN mkdir -p /app/data
+RUN mkdir -p /opt/claw-team
 
 EXPOSE 18080
-VOLUME ["/app/data"]
+VOLUME ["/opt/claw-team"]
 
 CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "18080"]

@@ -3238,7 +3238,7 @@ class Stage1BackendTests(unittest.TestCase):
 
     def test_settings_default_database_url_uses_persistent_app_data_path(self) -> None:
         config_module = importlib.import_module("src.core.config")
-        self.assertEqual(config_module.DEFAULT_CONTAINER_DATABASE_URL, "sqlite:////app/data/app.db")
+        self.assertEqual(config_module.DEFAULT_CONTAINER_DATABASE_URL, "sqlite:////opt/claw-team/app.db")
         self.assertEqual(config_module.DEFAULT_LOCAL_DATABASE_URL, "sqlite:///./data/app.db")
 
     def test_app_serves_built_web_client_when_dist_directory_exists(self) -> None:
