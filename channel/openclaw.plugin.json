@@ -1,7 +1,7 @@
 {
   "id": "claw-team",
   "name": "Claw Team Channel",
-  "version": "1.0.0-beta.4",
+  "version": "1.0.0-beta.5",
   "description": "Claw Team 与 OpenClaw 的桥接通道，支持单聊、群聊、@mention",
   "kind": "channel",
   "channels": ["claw-team"],
