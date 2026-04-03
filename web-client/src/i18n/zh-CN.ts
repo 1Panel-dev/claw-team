@@ -181,7 +181,7 @@ export const zhCN = {
         gatewayTokenPlaceholder: "填写当前 OpenClaw Gateway token",
         gatewayTokenHint: "这个值不会保存，仅用于生成配置 JSON。",
         openclawJsonConfig: "OpenClaw JSON 配置",
-        openclawJsonConfigHelp: "填入 Gateway Token 后，复制这段 JSON 到 openclaw.json 配置文件中，然后重启 OpenClaw 容器。\n如果 openclaw.json 里已经存在 hooks、skills 或 channels，请不要直接覆盖，务必先仔细检查并手动合并。",
+        openclawJsonConfigHelp: "填入 Gateway Token 后，复制这段 JSON 到 openclaw.json 配置文件中，然后重启 OpenClaw 容器。\n如果 openclaw.json 里已经存在 skills 或 channels，请不要直接覆盖，务必先仔细检查并手动合并。",
         copyOpenclawJsonConfig: "复制 OpenClaw JSON",
         copySuccess: "已复制",
         copyFailed: "复制失败",

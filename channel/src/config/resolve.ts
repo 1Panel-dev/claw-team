@@ -33,7 +33,7 @@ export async function discoverAgents(acct: AccountConfig): Promise<AgentDirector
             return agents;
         }
     } catch {
-        // noop: fall back to static config
+        return describeAgents(acct);
     }
 
     return describeAgents(acct);

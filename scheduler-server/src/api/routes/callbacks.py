@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import hashlib
 import json
 import uuid
@@ -62,6 +63,7 @@ class WebchatMirrorCreate(BaseModel):
     messageId: str = Field(min_length=1)
     senderType: str = Field(min_length=1)
     content: str = Field(min_length=1)
+    timestamp: int | None = Field(default=None, ge=0)
 
 
 class SendTextCreate(BaseModel):
@@ -300,6 +302,7 @@ async def mirror_webchat_message(
                 sender_label=sender_label,
                 content=payload.content.strip(),
                 status="completed",
+                created_at=_resolve_webchat_mirror_created_at(payload.timestamp),
             )
         )
         db.commit()
@@ -611,3 +614,9 @@ def _normalize_mirror_sender_type(value: str) -> str:
     if normalized in {"agent", "assistant"}:
         return "agent"
     return "user"
+
+
+def _resolve_webchat_mirror_created_at(timestamp_ms: int | None) -> datetime | None:
+    if timestamp_ms is None:
+        return None
+    return datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
