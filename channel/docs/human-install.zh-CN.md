@@ -10,6 +10,39 @@
 openclaw plugins install @1panel-dev/claw-team
 ```
 
+如果这一步出现 `429 Rate Limit Exceeded`，说明 ClawHub 限流了。不要停在这里，直接改走 npm 手动安装：
+
+```bash
+cd /tmp
+npm pack @1panel-dev/claw-team
+mkdir -p /tmp/claw-team-pkg
+cd /tmp/claw-team-pkg
+tar xzf /tmp/1panel-dev-claw-team-1.0.1.tgz
+```
+
+这会把安装包解压到 `/tmp/claw-team-pkg/package/`。
+
+然后复制到 OpenClaw extensions 目录：
+
+```bash
+cp -r /tmp/claw-team-pkg/package /home/node/.openclaw/extensions/claw-team
+```
+
+如果 `/home/node/.openclaw/extensions/claw-team` 已经存在，不要直接删除。请先检查目录内容；如果里面有你自己改过的文件，先备份，再替换。可参考：
+
+```bash
+ls -la /home/node/.openclaw/extensions/claw-team
+mv /home/node/.openclaw/extensions/claw-team /home/node/.openclaw/extensions/claw-team.bak.$(date +%Y%m%d-%H%M%S)
+cp -r /tmp/claw-team-pkg/package /home/node/.openclaw/extensions/claw-team
+```
+
+最后安装插件依赖：
+
+```bash
+cd /home/node/.openclaw/extensions/claw-team
+npm install --omit=dev
+```
+
 如果此时出现 `baseUrl`、`outboundToken`、`inboundSigningSecret` 缺失报错，不用停止，继续下一步配置。
 
 2. 启用插件。
@@ -20,7 +53,7 @@ openclaw plugins enable claw-team
 
 3. 打开 Claw Team 客户端，进入 `OpenClaw` 页面，先创建实例或编辑已有实例。
 
-4. 在实例抽屉里填写并获取这些内容：
+4. 在实例抽屉里填写这些内容：
 
 - `OpenClaw URL`
   填当前 OpenClaw 实例地址。
@@ -38,13 +71,16 @@ openclaw plugins enable claw-team
 
 6. 在实例抽屉里点击 `OpenClaw JSON 配置` 右侧的复制图标。
 
-这时客户端会自动生成实际可用的配置内容，包括：
+这时客户端会自动生成我们的 OpenClaw JSON 配置，内容包括：
 
+- `plugins.allow`
+- `plugins.entries.claw-team`
 - `skills`
 - `channels.claw-team.accounts.default.baseUrl`
 - `outboundToken`
 - `inboundSigningSecret`
 - `gateway.baseUrl`
+- `webchatMirror.includeIntermediateMessages`
 
 你只需要补 `Gateway Token`，其余值由 Claw Team 自动生成。
 
@@ -56,12 +92,12 @@ openclaw plugins enable claw-team
 ~/.openclaw/openclaw.json
 ```
 
-8. 把刚才复制出来的 JSON 片段合并到 `openclaw.json` 里。
+8. 把刚才从 Claw Team 客户端复制出来的 OpenClaw JSON 配置合并到 `openclaw.json` 里。
 
 注意：
 
 - 不要把整个文件直接覆盖掉。
-- 如果 `openclaw.json` 里已经存在 `skills` 或 `channels`，请务必先仔细检查，再手动合并。
+- 如果 `openclaw.json` 里已经存在 `plugins`、`skills` 或 `channels`，请务必先仔细检查，再手动合并。
 
 9. 重启 Gateway。
 
@@ -69,7 +105,7 @@ openclaw plugins enable claw-team
 openclaw gateway restart
 ```
 
-如果你运行在容器环境里，不能直接使用 `openclaw gateway restart`，请改为重启 OpenClaw 容器。
+如果你运行在容器环境里，不能直接使用 `openclaw gateway restart`，请改为重启 OpenClaw 容器，或者向 Gateway 进程发送 `USR1`。
 
 10. 验证安装。
 
@@ -78,3 +114,8 @@ openclaw plugins list
 openclaw plugins inspect claw-team
 openclaw skills list
 ```
+
+正常情况下，应该能看到：
+
+- `claw-team` 状态为 `loaded`
+- `ct-chat` 技能状态为 `ready`

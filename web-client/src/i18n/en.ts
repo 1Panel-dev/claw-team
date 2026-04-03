@@ -180,6 +180,8 @@ export const en = {
         gatewayToken: "Gateway Token",
         gatewayTokenPlaceholder: "Fill in the current OpenClaw Gateway token",
         gatewayTokenHint: "This value is not saved. It is only used to generate the config JSON.",
+        includeIntermediateMessages: "Sync intermediate messages",
+        includeIntermediateMessagesHelp: "When enabled, the generated config syncs tool calls and intermediate process messages. When disabled, it only syncs final messages.",
         openclawJsonConfig: "OpenClaw JSON Config",
         openclawJsonConfigHelp: "Fill in the Gateway Token, then copy this JSON into openclaw.json and restart the OpenClaw container.\nIf skills or channels already exist in openclaw.json, do not overwrite them blindly. Review and merge carefully.",
         copyOpenclawJsonConfig: "Copy OpenClaw JSON",

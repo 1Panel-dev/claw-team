@@ -136,6 +136,9 @@ describe("claw-team sendText", () => {
                 baseUrl: "https://example.com",
                 outboundToken: "outbound-token-123",
                 inboundSigningSecret: "inbound-signing-secret-123",
+                webchatMirror: {
+                    includeIntermediateMessages: true,
+                },
                 gateway: {},
                 limits: {
                     maxBroadcastAgents: 50,

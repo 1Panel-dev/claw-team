@@ -10,6 +10,21 @@
 openclaw plugins install @1panel-dev/claw-team
 ```
 
+如果这一步出现 `429 Rate Limit Exceeded`，说明 ClawHub 限流了。不要让用户卡在这里，改为指导用户走 npm 手动安装：
+
+```bash
+cd /tmp
+npm pack @1panel-dev/claw-team
+mkdir -p /tmp/claw-team-pkg
+cd /tmp/claw-team-pkg
+tar xzf /tmp/1panel-dev-claw-team-1.0.1.tgz
+cp -r /tmp/claw-team-pkg/package /home/node/.openclaw/extensions/claw-team
+cd /home/node/.openclaw/extensions/claw-team
+npm install --omit=dev
+```
+
+如果 `/home/node/.openclaw/extensions/claw-team` 已经存在，不要让用户直接删除。应先让用户检查目录；如果里面有本地改动，先备份，再替换。
+
 如果此时出现 `baseUrl`、`outboundToken`、`inboundSigningSecret` 缺失报错，不要中断，继续指导用户完成配置。
 
 2. 启用插件。
@@ -18,16 +33,16 @@ openclaw plugins install @1panel-dev/claw-team
 openclaw plugins enable claw-team
 ```
 
-3. 打开 Claw Team 客户端，进入 `OpenClaw` 页面，先创建实例或编辑已有实例。
+3. 告诉用户打开 Claw Team 客户端，进入 `OpenClaw` 页面，然后创建实例或编辑已有实例。
 
-4. 在实例抽屉里填写并获取这些内容：
+4. 告诉用户在实例抽屉里填写这些内容：
 
 - `OpenClaw URL`
-  填当前 OpenClaw 实例地址。
+  让用户填写当前 OpenClaw 实例地址。
 - `Gateway Token`
-  填当前 OpenClaw Gateway 正在使用的 token。
+  让用户填写当前 OpenClaw Gateway 正在使用的 token。
 
-5. 先保存实例。
+5. 告诉用户先保存实例。
 
 实例保存成功后，Claw Team 才会为这个实例生成：
 
@@ -36,19 +51,22 @@ openclaw plugins enable claw-team
 
 之后，实例抽屉里才会出现可复制的 `OpenClaw JSON 配置`。
 
-6. 在实例抽屉里点击 `OpenClaw JSON 配置` 右侧的复制图标。
+6. 告诉用户在实例抽屉里点击 `OpenClaw JSON 配置` 右侧的复制图标，然后把复制出来的 JSON 片段直接粘贴给你。
 
-这时客户端会自动生成实际可用的配置内容，包括：
+这时客户端会自动生成完整的 OpenClaw JSON 配置，内容包括：
 
+- `plugins.allow`
+- `plugins.entries.claw-team`
 - `skills`
 - `channels.claw-team.accounts.default.baseUrl`
 - `outboundToken`
 - `inboundSigningSecret`
 - `gateway.baseUrl`
+- `webchatMirror.includeIntermediateMessages`
 
-你只需要补 `Gateway Token`，其余值由 Claw Team 自动生成。
+`Gateway Token` 需要用户自己填写，其余值由 Claw Team 自动生成。
 
-7. 打开 OpenClaw 配置文件。
+7. 在用户把 JSON 片段发给你之后，由你打开 OpenClaw 配置文件。
 
 常见位置：
 
@@ -56,14 +74,17 @@ openclaw plugins enable claw-team
 ~/.openclaw/openclaw.json
 ```
 
-8. 把刚才复制出来的 JSON 片段合并到 `openclaw.json` 里。
+8. 由你把用户发来的 OpenClaw JSON 配置合并到 `openclaw.json` 里。
 
 注意：
 
 - 不要把整个文件直接覆盖掉。
-- 如果 `openclaw.json` 里已经存在 `skills` 或 `channels`，请务必先仔细检查，再手动合并。
+- 如果 `openclaw.json` 里已经存在 `plugins`、`skills` 或 `channels`，请务必先仔细检查，再手动合并。
+- `plugins.allow` 不支持通配符 `["*"]`。
+- 必须显式写出 `claw-team`。
+- 写入未知插件 ID 会触发配置校验错误。
 
-9. 在用户完成配置后，指导用户重启 Gateway。
+9. 配置写入完成后，告诉用户重启 Gateway。
 
 ```bash
 openclaw gateway restart
@@ -71,7 +92,7 @@ openclaw gateway restart
 
 如果你运行在容器环境里，不能直接使用 `openclaw gateway restart`，请改为重启 OpenClaw 容器。
 
-10. 验证。
+10. 用户完成重启后，再执行验证。
 
 ```bash
 openclaw plugins list

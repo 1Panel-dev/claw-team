@@ -4,6 +4,12 @@ run-name: 发布 channel 包 (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm_latest_release:
+        description: "确认发布正式版 latest（未勾选将阻止 main 分支发布）"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -36,6 +42,7 @@ jobs:
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           PLUGIN_VERSION=$(node -p "require('./openclaw.plugin.json').version")
           BRANCH_NAME="${GITHUB_REF_NAME}"
+          CONFIRM_LATEST_RELEASE="${{ inputs.confirm_latest_release }}"
 
           echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -56,6 +63,10 @@ jobs:
           if [[ "${BRANCH_NAME}" == "main" ]]; then
             if [[ "${PACKAGE_VERSION}" == *"-beta"* ]]; then
               echo "main branch cannot publish a beta version"
+              exit 1
+            fi
+            if [[ "${CONFIRM_LATEST_RELEASE}" != "true" ]]; then
+              echo "main branch publish requires confirm_latest_release=true"
               exit 1
             fi
             echo "npm_dist_tag=latest" >> "$GITHUB_OUTPUT"

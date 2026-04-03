@@ -10,7 +10,7 @@ import {
     markLocalOriginSession,
 } from "../openclaw/mirrorOriginRegistry.js";
 
-function createApiMock() {
+function createApiMock(accountOverride?: Record<string, unknown>) {
     const handlers = new Map<string, (event: any, ctx?: any) => Promise<any> | any>();
     return {
         handlers,
@@ -22,6 +22,7 @@ function createApiMock() {
                             default: {
                                 baseUrl: "https://mirror.example.com",
                                 outboundToken: "token-123",
+                                ...accountOverride,
                             },
                         },
                     },
@@ -483,5 +484,84 @@ describe("registerWebchatTranscriptMirror", () => {
             senderType: "assistant",
             messageId: "tool-call:agent:main:main:call-local-1",
         });
+    });
+
+    it("can disable intermediate mirror messages while keeping final output", async () => {
+        const { api, handlers } = createApiMock({
+            webchatMirror: {
+                includeIntermediateMessages: false,
+            },
+        });
+
+        registerWebchatTranscriptMirror(api as any, logger);
+
+        await handlers.get("before_tool_call")?.(
+            {
+                toolName: "weather",
+                toolCallId: "call-compact-1",
+                params: { location: "Shanghai" },
+            },
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+                toolName: "weather",
+                toolCallId: "call-compact-1",
+            },
+        );
+
+        await handlers.get("tool_result_persist")?.(
+            {
+                toolName: "weather",
+                toolCallId: "call-compact-1",
+                message: {
+                    role: "toolResult",
+                    toolName: "weather",
+                    details: { status: "completed" },
+                    content: [{ type: "text", text: "sunny" }],
+                },
+            },
+            {
+                sessionKey: "agent:main:main",
+                toolName: "weather",
+                toolCallId: "call-compact-1",
+            },
+        );
+
+        await handlers.get("before_message_write")?.(
+            {
+                sessionKey: "agent:main:main",
+                message: {
+                    role: "assistant",
+                    stopReason: "toolUse",
+                    content: [{ type: "text", text: "先看一下天气。" }],
+                },
+            },
+            {
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        await handlers.get("llm_output")?.(
+            {
+                runId: "run-compact-1",
+                assistantTexts: ["最终答复"],
+            },
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+            },
+        );
+
+        const payloads = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body as string));
+        expect(payloads).toEqual([
+            {
+                channelId: "webchat",
+                sessionKey: "agent:main:main",
+                messageId: "llm-output:agent:main:main:run-compact-1:0",
+                senderType: "assistant",
+                content: "最终答复",
+                timestamp: expect.any(Number),
+            },
+        ]);
     });
 });

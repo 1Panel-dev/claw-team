@@ -32,6 +32,12 @@ export const AccountConfigSchema = z
         outboundToken: z.string().min(8),
         inboundSigningSecret: z.string().min(16),
 
+        webchatMirror: z
+            .object({
+                includeIntermediateMessages: z.boolean().default(true),
+            })
+            .default({}),
+
         // 这是插件调用 OpenClaw Gateway 官方 HTTP 端点时使用的参数。
         gateway: GatewayConfigSchema,
 

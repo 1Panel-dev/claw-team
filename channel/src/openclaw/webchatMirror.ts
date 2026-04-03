@@ -28,6 +28,9 @@ const MIRROR_HOOK_EVENTS = [
 type ClawTeamAccountConfig = {
     baseUrl?: string;
     outboundToken?: string;
+    webchatMirror?: {
+        includeIntermediateMessages?: boolean;
+    };
 };
 
 type HookEvent = {
@@ -201,11 +204,11 @@ function sanitizeForJson(value: unknown, depth = 0): unknown {
     return String(value);
 }
 
-function readAccountFromConfig(config: any): ClawTeamAccountConfig | null {
+function readAccountFromConfig(config: any, accountId?: string): ClawTeamAccountConfig | null {
     const account =
-        config?.channels?.[CHANNEL_ID]?.accounts?.default &&
-        typeof config.channels[CHANNEL_ID].accounts.default === "object"
-            ? (config.channels[CHANNEL_ID].accounts.default as Record<string, unknown>)
+        config?.channels?.[CHANNEL_ID]?.accounts?.[accountId ?? "default"] &&
+        typeof config.channels[CHANNEL_ID].accounts[accountId ?? "default"] === "object"
+            ? (config.channels[CHANNEL_ID].accounts[accountId ?? "default"] as Record<string, unknown>)
             : null;
 
     if (!account) {
@@ -215,6 +218,16 @@ function readAccountFromConfig(config: any): ClawTeamAccountConfig | null {
     return {
         baseUrl: typeof account.baseUrl === "string" ? account.baseUrl.trim() : undefined,
         outboundToken: typeof account.outboundToken === "string" ? account.outboundToken.trim() : undefined,
+        webchatMirror:
+            account.webchatMirror && typeof account.webchatMirror === "object"
+                ? {
+                      includeIntermediateMessages:
+                          typeof (account.webchatMirror as Record<string, unknown>).includeIntermediateMessages === "boolean"
+                              ? ((account.webchatMirror as Record<string, unknown>)
+                                    .includeIntermediateMessages as boolean)
+                              : undefined,
+                  }
+                : undefined,
     };
 }
 
@@ -649,6 +662,11 @@ function buildLlmOutputPayloads(event: HookEvent, ctx: HookContext): MirrorPaylo
     ];
 }
 
+function shouldIncludeIntermediateMessages(api: OpenClawPluginApi, event: HookEvent, ctx: HookContext): boolean {
+    const config = event.context?.cfg ?? api.runtime?.config?.loadConfig?.() ?? api.config;
+    return readAccountFromConfig(config, ctx.accountId)?.webchatMirror?.includeIntermediateMessages ?? true;
+}
+
 function readMirrorConfig(api: OpenClawPluginApi, event: HookEvent, ctx: HookContext): {
     baseUrl: string;
     outboundToken: string;
@@ -800,6 +818,9 @@ async function handleBeforeToolCall(
     ) {
         return;
     }
+    if (!shouldIncludeIntermediateMessages(api, event, ctx)) {
+        return;
+    }
     markWebchatSessionActive(state, sessionKey);
     await postMirrorPayload(api, logger, state, event, ctx, buildBeforeToolCallPayload(event, ctx));
 }
@@ -815,6 +836,9 @@ async function handleToolResultPersist(
     if (!sessionKey || (!isTrackedWebchatSession(state, sessionKey) && !isLocalOriginSession(sessionKey))) {
         return;
     }
+    if (!shouldIncludeIntermediateMessages(api, event, ctx)) {
+        return;
+    }
     await postMirrorPayload(api, logger, state, event, ctx, buildToolResultPayload(event, ctx));
 }
 
@@ -827,6 +851,9 @@ async function handleBeforeMessageWrite(
 ): Promise<void> {
     const sessionKey = normalizeSessionKey(event.sessionKey ?? ctx.sessionKey);
     if (!sessionKey || (!isTrackedWebchatSession(state, sessionKey) && !isLocalOriginSession(sessionKey))) {
+        return;
+    }
+    if (!shouldIncludeIntermediateMessages(api, event, ctx)) {
         return;
     }
     await postMirrorPayload(api, logger, state, event, ctx, buildBeforeMessageWritePayload(event, ctx));
