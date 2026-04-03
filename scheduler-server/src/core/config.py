@@ -42,6 +42,9 @@ class Settings(BaseModel):
     # 本地前后端联调时，如果 OpenClaw / channel 不可用，
     # 可以打开这个开关，由 scheduler-server 自己生成一条模拟 Agent 回复。
     local_agent_mock_enabled: bool = _env_flag("LOCAL_AGENT_MOCK_ENABLED", False)
+    auth_secret: str = os.getenv("AUTH_SECRET", "claw-team-dev-auth-secret")
+    default_login_username: str = os.getenv("DEFAULT_LOGIN_USERNAME", "admin")
+    default_login_password: str = os.getenv("DEFAULT_LOGIN_PASSWORD", "admin123456")
 
 
 settings = Settings()

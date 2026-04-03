@@ -29,27 +29,41 @@ from src.schemas.instance import (
     OpenClawConnectResponse,
     OpenClawSyncAgentsResponse,
 )
+from src.services.agent_cleanup import delete_instance_private_data
 
 router = APIRouter(prefix="/api/instances", tags=["instances"])
 
 HEALTH_CHECK_TIMEOUT = httpx.Timeout(5.0, connect=2.0)
 HEALTH_CHECK_MAX_WORKERS = 8
 HEALTH_CHECK_BATCH_TIMEOUT_SECONDS = 10.0
+CHANNEL_FETCH_TIMEOUT = 60.0
 
 
 def fetch_channel_agents(base_url: str) -> list[dict]:
     try:
-        with httpx.Client(timeout=10.0, verify=False) as client:
+        with httpx.Client(timeout=CHANNEL_FETCH_TIMEOUT, verify=False) as client:
             health = client.get(f"{base_url}/claw-team/v1/health")
             health.raise_for_status()
             agents_response = client.get(f"{base_url}/claw-team/v1/agents")
             agents_response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=400, detail=f"failed to connect channel: {exc}") from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
+    except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+        raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise HTTPException(
+                status_code=502,
+                detail="claw-team plugin is unavailable on the OpenClaw instance",
+            ) from exc
+        raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
 
-    agents_payload = agents_response.json()
+    try:
+        agents_payload = agents_response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
     if not isinstance(agents_payload, list):
-        raise HTTPException(status_code=400, detail="invalid agents response")
+        raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response")
     return [item for item in agents_payload if isinstance(item, dict)]
 
 
@@ -72,6 +86,7 @@ def resolve_runtime_status(instance: OpenClawInstance) -> str:
 def serialize_instance(instance: OpenClawInstance) -> dict:
     return {
         "id": instance.id,
+        "instance_key": instance.instance_key,
         "name": instance.name,
         "channel_base_url": instance.channel_base_url,
         "channel_account_id": instance.channel_account_id,
@@ -160,18 +175,17 @@ def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_s
     快速接入一套已经安装好 claw-team channel 的 OpenClaw。
 
     这里做 4 件事：
-    1. 调 /health 验证 channel 已加载。
-    2. 调 /agents 拉取可用 Agent。
-    3. 创建或更新实例记录。
-    4. 自动导入 Agent，避免用户手工新增。
+    1. 创建或更新实例记录，并生成一组新的配对凭据。
+    2. 尝试调 /agents 拉取可用 Agent。
+    3. 如果 channel 还没配完导致暂时连不上，也不阻塞实例创建。
+    4. 用户把凭据写回 OpenClaw 后，可以再单独执行 sync-agents。
     """
     base_url = payload.channel_base_url.rstrip("/")
-    agents_payload = fetch_channel_agents(base_url)
 
     credentials = generate_instance_credentials()
     item = db.scalar(
         select(OpenClawInstance).where(
-            (OpenClawInstance.name == payload.name) | (OpenClawInstance.channel_base_url == base_url)
+            OpenClawInstance.channel_base_url == base_url
         )
     )
     if item is None:
@@ -193,7 +207,15 @@ def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_s
         item.callback_token = credentials.outbound_token
         db.flush()
 
-    imported_agent_count, imported_agent_keys = sync_instance_agents(db, item, agents_payload)
+    imported_agent_count = 0
+    imported_agent_keys: list[str] = []
+    try:
+        agents_payload = fetch_channel_agents(base_url)
+    except HTTPException:
+        agents_payload = None
+
+    if agents_payload is not None:
+        imported_agent_count, imported_agent_keys = sync_instance_agents(db, item, agents_payload)
 
     db.commit()
     db.refresh(item)
@@ -238,7 +260,9 @@ def update_instance(instance_id: int, payload: InstanceUpdate, db: Session = Dep
     item = db.get(OpenClawInstance, instance_id)
     if not item:
         raise HTTPException(status_code=404, detail="instance not found")
-    for key, value in dump_model(payload, exclude_unset=True).items():
+
+    updates = dump_model(payload, exclude_unset=True)
+    for key, value in updates.items():
         setattr(item, key, value)
     db.commit()
     db.refresh(item)
@@ -266,3 +290,11 @@ def disable_instance(instance_id: int, db: Session = Depends(db_session)) -> Ope
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.delete("/{instance_id}", status_code=204)
+def delete_instance(instance_id: int, db: Session = Depends(db_session)) -> None:
+    item = delete_instance_private_data(db, instance_id=instance_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="instance not found")
+    db.commit()

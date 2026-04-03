@@ -3,13 +3,13 @@ import type { GroupDescriptor } from "../types.js";
 import { discoverAgents } from "../config.js";
 import { sendJson } from "./common.js";
 
-export function handleCatalogRoutes(params: {
+export async function handleCatalogRoutes(params: {
     pathname: string;
     method: string;
     res: any;
     channelId: string;
     getAccount: (accountId?: string) => AccountConfig & { accountId: string };
-}): boolean {
+}): Promise<boolean> {
     const { pathname, method, res, channelId, getAccount } = params;
 
     // 健康检查接口，主要给运维和联调使用。
@@ -21,7 +21,7 @@ export function handleCatalogRoutes(params: {
     // 返回当前账号允许使用的 Agent 列表，便于前后端联调。
     if (pathname === "/claw-team/v1/agents" && method === "GET") {
         const acct = getAccount(undefined);
-        sendJson(res, 200, discoverAgents(acct));
+        sendJson(res, 200, await discoverAgents(acct));
         return true;
     }
 
@@ -32,7 +32,7 @@ export function handleCatalogRoutes(params: {
             {
                 groupId: "default",
                 name: "Default Claw Team Group",
-                members: discoverAgents(acct).map((agent) => agent.id),
+                members: (await discoverAgents(acct)).map((agent) => agent.id),
             },
         ];
         sendJson(res, 200, groups);
@@ -52,7 +52,7 @@ export function handleCatalogRoutes(params: {
         sendJson(res, 200, {
             groupId,
             name: groupId === "default" ? "Default Claw Team Group" : groupId,
-            members: discoverAgents(acct).map((agent) => agent.id),
+            members: (await discoverAgents(acct)).map((agent) => agent.id),
         });
         return true;
     }

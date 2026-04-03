@@ -152,19 +152,22 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
         if event_type == "reply.final":
             # final 事件视为一次 agent 回复完成，因此生成一条 sender_type=agent 的消息。
             text = _build_message_content(event.get("payload", {}))
-            if not agent_message:
-                db.add(
-                    Message(
-                        id=agent_message_id,
-                        conversation_id=dispatch.conversation_id,
-                        sender_type="agent",
-                        sender_label=agent.display_name,
-                        content=text,
-                        status="completed",
+            if text.strip():
+                if not agent_message:
+                    db.add(
+                        Message(
+                            id=agent_message_id,
+                            conversation_id=dispatch.conversation_id,
+                            sender_type="agent",
+                            sender_label=agent.display_name,
+                            content=text,
+                            status="completed",
                         )
                     )
-            else:
-                agent_message.content = text
+                else:
+                    agent_message.content = text
+                    agent_message.status = "completed"
+            elif agent_message:
                 agent_message.status = "completed"
             if message.sender_type == "user":
                 message.status = "completed"

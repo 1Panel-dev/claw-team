@@ -101,7 +101,6 @@
  */
 import { computed, h, onMounted, ref } from "vue";
 import ElButton from "element-plus/es/components/button/index";
-import { ElMessage } from "element-plus/es/components/message/index";
 import type { Column } from "element-plus/es/components/table-v2/index";
 
 import TaskDetailPane from "@/components/task/TaskDetailPane.vue";

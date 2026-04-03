@@ -6,6 +6,7 @@ import { createIdempotencyStore } from "../store/idempotency.js";
 import { InMemoryMessageStateStore, type MessageStateStore } from "../store/messageState.js";
 import { HttpClawTeamCallbackClient, type ClawTeamCallbackClient } from "../callback/client.js";
 import { createOpenClawRuntimeAdapter, type OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
+import { configureOpenClawCliRuntime } from "../openclaw/openclawCli.js";
 
 export function describeRuntimeShape(runtime: unknown) {
     if (!runtime || typeof runtime !== "object") {
@@ -44,6 +45,8 @@ export function createPluginRuntimeServices(api: OpenClawPluginApi): PluginRunti
     // 尽量复用宿主 logger，这样插件日志能和 Gateway 日志汇总到一起。
     const sink = wrapOpenClawLogger(api.logger);
     const logger = createLogger({ sink });
+
+    configureOpenClawCliRuntime(api.runtime?.system);
 
     // runtime adapter 是和 OpenClaw 宿主交互的唯一隔离层。
     const openclaw = createOpenClawRuntimeAdapter(api);

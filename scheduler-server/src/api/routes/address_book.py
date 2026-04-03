@@ -30,11 +30,21 @@ router = APIRouter(prefix="/api", tags=["address-book"])
 @router.get("/address-book", response_model=AddressBookResponse)
 def get_address_book(db: Session = Depends(db_session)) -> AddressBookResponse:
     # 第一阶段前端先用一个聚合接口拿全量通讯录，避免刚起步时为了树结构拆太多请求。
-    instances = list(db.scalars(select(OpenClawInstance).order_by(OpenClawInstance.id)))
+    instances = list(
+        db.scalars(
+            select(OpenClawInstance)
+            .where(OpenClawInstance.status != "disabled")
+            .order_by(OpenClawInstance.id)
+        )
+    )
+    visible_instance_ids = {instance.id for instance in instances}
     agents = list(
         db.scalars(
             select(AgentProfile)
-            .where(AgentProfile.removed_from_openclaw.is_(False))
+            .where(
+                AgentProfile.removed_from_openclaw.is_(False),
+                AgentProfile.instance_id.in_(visible_instance_ids) if visible_instance_ids else False,
+            )
             .order_by(AgentProfile.instance_id, AgentProfile.id)
         )
     )

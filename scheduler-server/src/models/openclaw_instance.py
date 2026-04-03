@@ -7,6 +7,8 @@
 3. 调度中心调用 channel 时使用的签名密钥。
 4. channel 回调调度中心时使用的 callback token。
 """
+from uuid import uuid4
+
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +20,9 @@ class OpenClawInstance(Base, TimestampMixin):
     __tablename__ = "openclaw_instances"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(120), unique=True)
+    # 稳定唯一标识只给系统自己用，展示名允许重复。
+    instance_key: Mapped[str] = mapped_column(String(36), unique=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(120))
     # 例如 https://172.16.200.119:18789 这样的 claw-team channel 基础地址。
     channel_base_url: Mapped[str] = mapped_column(String(500))
     # 对应 channel 里的账号标识，当前默认一般都是 default。

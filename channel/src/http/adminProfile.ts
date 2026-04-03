@@ -66,7 +66,7 @@ export async function handleAdminAgentProfileRoute(params: {
     }
 
     try {
-        const agent = updateRealOpenClawAgent({
+        const agent = await updateRealOpenClawAgent({
             agentId: agentKey,
             displayName: parsed.data.displayName,
             profileFiles: {

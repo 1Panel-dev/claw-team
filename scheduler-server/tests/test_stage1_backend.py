@@ -16,7 +16,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
+import httpx
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -32,9 +34,10 @@ from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
-from src.models.task import Task
 from src.core.config import settings
 from src.api.routes.agents import sync_instance_agents
+from src.api.routes import instances as instances_route
+from src.services.auth import build_session_cookie_value, ensure_default_user
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 
 
@@ -57,6 +60,7 @@ class Stage1BackendTests(unittest.TestCase):
         Base.metadata.create_all(bind=self.engine)
 
         self.app = create_app()
+        self.app.state.session_local = self.SessionLocal
         self.original_web_dist_dir = getattr(settings, "web_dist_dir", None)
 
         def override_db():
@@ -68,6 +72,9 @@ class Stage1BackendTests(unittest.TestCase):
 
         self.app.dependency_overrides[db_session] = override_db
         self.client = TestClient(self.app)
+        with self.SessionLocal() as db:
+            user = ensure_default_user(db)
+            self.client.cookies.set("claw_team_session", build_session_cookie_value(user))
 
     def tearDown(self) -> None:
         self.app.dependency_overrides.clear()
@@ -153,6 +160,231 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(payload[1]["type"], "direct")
         self.assertEqual(payload[1]["instance_name"], "OpenClaw A")
         self.assertEqual(payload[1]["agent_display_name"], "Main Agent")
+
+    def test_auth_login_sets_session_and_allows_protected_api(self) -> None:
+        self.client.cookies.clear()
+        unauthenticated = self.client.get("/api/instances")
+        self.assertEqual(unauthenticated.status_code, 401)
+        self.assertEqual(unauthenticated.json()["detail"], "Authentication required")
+
+        login_response = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_response.status_code, 200)
+        login_payload = login_response.json()
+        self.assertEqual(login_payload["username"], "admin")
+        self.assertEqual(login_payload["display_name"], "admin")
+        self.assertTrue(login_payload["using_default_password"])
+        self.assertTrue(login_payload["id"])
+
+        me_response = self.client.get("/api/auth/me")
+        self.assertEqual(me_response.status_code, 200)
+        self.assertEqual(me_response.json()["username"], "admin")
+        self.assertEqual(me_response.json()["display_name"], "admin")
+
+        instances_response = self.client.get("/api/instances")
+        self.assertEqual(instances_response.status_code, 200)
+
+    def test_auth_profile_update_changes_display_name_and_password(self) -> None:
+        self.client.cookies.clear()
+        login_response = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_response.status_code, 200)
+
+        update_response = self.client.put(
+            "/api/auth/profile",
+            json={
+                "display_name": "Owner",
+                "current_password": "admin123456",
+                "new_password": "new-password-123",
+            },
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["username"], "admin")
+        self.assertEqual(update_response.json()["display_name"], "Owner")
+        self.assertFalse(update_response.json()["using_default_password"])
+
+        self.client.post("/api/auth/logout")
+
+        old_login = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(old_login.status_code, 401)
+        self.assertEqual(old_login.json()["detail"], "Invalid username or password")
+
+        new_login = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "new-password-123"},
+        )
+        self.assertEqual(new_login.status_code, 200)
+        self.assertEqual(new_login.json()["username"], "admin")
+        self.assertEqual(new_login.json()["display_name"], "Owner")
+        self.assertFalse(new_login.json()["using_default_password"])
+
+    def test_auth_profile_update_allows_display_name_change_without_current_password(self) -> None:
+        self.client.cookies.clear()
+        login_response = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_response.status_code, 200)
+
+        update_response = self.client.put(
+            "/api/auth/profile",
+            json={"display_name": "Owner Only"},
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["display_name"], "Owner Only")
+        self.assertTrue(update_response.json()["using_default_password"])
+
+        login_again = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_again.status_code, 200)
+        self.assertEqual(login_again.json()["display_name"], "Owner Only")
+
+    def test_health_remains_public_without_login(self) -> None:
+        self.client.cookies.clear()
+        response = self.client.get("/api/health")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+
+    def test_list_conversations_hides_direct_conversations_for_disabled_instance(self) -> None:
+        with self.SessionLocal() as db:
+            disabled_instance = OpenClawInstance(
+                name="Disabled OpenClaw",
+                channel_base_url="https://disabled.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="disabled",
+            )
+            active_instance = OpenClawInstance(
+                name="Active OpenClaw",
+                channel_base_url="https://active.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-abcdef",
+                callback_token="callback-token-456",
+                status="active",
+            )
+            db.add_all([disabled_instance, active_instance])
+            db.flush()
+
+            disabled_agent = AgentProfile(
+                instance_id=disabled_instance.id,
+                agent_key="main",
+                display_name="Disabled Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            active_agent = AgentProfile(
+                instance_id=active_instance.id,
+                agent_key="main",
+                display_name="Active Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add_all([disabled_agent, active_agent])
+            db.flush()
+
+            disabled_conversation = Conversation(
+                type="direct",
+                title="Disabled OpenClaw / Disabled Agent",
+                direct_instance_id=disabled_instance.id,
+                direct_agent_id=disabled_agent.id,
+            )
+            active_conversation = Conversation(
+                type="direct",
+                title="Active OpenClaw / Active Agent",
+                direct_instance_id=active_instance.id,
+                direct_agent_id=active_agent.id,
+            )
+            db.add_all([disabled_conversation, active_conversation])
+            db.flush()
+
+            db.add_all(
+                [
+                    Message(
+                        id="msg_disabled_1",
+                        conversation_id=disabled_conversation.id,
+                        sender_type="agent",
+                        sender_label="Disabled Agent",
+                        content="disabled message",
+                        status="completed",
+                    ),
+                    Message(
+                        id="msg_active_1",
+                        conversation_id=active_conversation.id,
+                        sender_type="agent",
+                        sender_label="Active Agent",
+                        content="active message",
+                        status="completed",
+                    ),
+                ]
+            )
+            db.commit()
+
+        response = self.client.get("/api/conversations")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["instance_name"], "Active OpenClaw")
+
+    def test_address_book_hides_disabled_instances_and_their_agents(self) -> None:
+        with self.SessionLocal() as db:
+            disabled_instance = OpenClawInstance(
+                name="Disabled OpenClaw",
+                channel_base_url="https://disabled.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="disabled",
+            )
+            active_instance = OpenClawInstance(
+                name="Active OpenClaw",
+                channel_base_url="https://active.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-abcdef",
+                callback_token="callback-token-456",
+                status="active",
+            )
+            db.add_all([disabled_instance, active_instance])
+            db.flush()
+
+            db.add_all(
+                [
+                    AgentProfile(
+                        instance_id=disabled_instance.id,
+                        agent_key="main",
+                        display_name="Disabled Agent",
+                        role_name="assistant",
+                        enabled=True,
+                    ),
+                    AgentProfile(
+                        instance_id=active_instance.id,
+                        agent_key="main",
+                        display_name="Active Agent",
+                        role_name="assistant",
+                        enabled=True,
+                    ),
+                ]
+            )
+            db.commit()
+
+        response = self.client.get("/api/address-book")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(len(payload["instances"]), 1)
+        self.assertEqual(payload["instances"][0]["name"], "Active OpenClaw")
+        self.assertEqual(len(payload["instances"][0]["agents"]), 1)
+        self.assertEqual(payload["instances"][0]["agents"][0]["display_name"], "Active Agent")
 
     def test_agent_dialogue_model_can_persist_with_agent_dialogue_conversation(self) -> None:
         """
@@ -746,6 +978,100 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(first.json()["conversationId"], second.json()["conversationId"])
+
+    def test_instance_fetch_channel_agents_uses_extended_timeout(self) -> None:
+        instance = OpenClawInstance(
+            name="OpenClaw A",
+            channel_base_url="http://172.16.200.119:28789",
+            channel_account_id="default",
+            channel_signing_secret="signing-secret-123456",
+            callback_token="callback-token-123",
+            status="active",
+        )
+
+        client = unittest.mock.MagicMock()
+        client.__enter__.return_value = client
+        client.get.side_effect = [
+            unittest.mock.Mock(
+                raise_for_status=unittest.mock.Mock(),
+                json=unittest.mock.Mock(return_value={"ok": True}),
+            ),
+            unittest.mock.Mock(
+                raise_for_status=unittest.mock.Mock(),
+                json=unittest.mock.Mock(
+                    return_value=[{"id": "main", "name": "main", "openclawAgentRef": "main"}]
+                ),
+            ),
+        ]
+
+        with patch.object(instances_route.httpx, "Client", return_value=client) as client_factory:
+            payload = instances_route.fetch_channel_agents(instance.channel_base_url)
+
+        self.assertEqual(payload, [{"id": "main", "name": "main", "openclawAgentRef": "main"}])
+        client_factory.assert_called_once()
+        timeout = client_factory.call_args.kwargs["timeout"]
+        self.assertEqual(timeout, 60.0)
+
+    def test_update_instance_allows_duplicate_name(self) -> None:
+        with self.SessionLocal() as db:
+            first = OpenClawInstance(
+                name="OpenClaw Deferred Connect",
+                instance_key="inst-1",
+                channel_base_url="http://172.16.200.119:18789",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-1",
+                callback_token="callback-token-1",
+                status="active",
+            )
+            second = OpenClawInstance(
+                name="OC2",
+                instance_key="inst-2",
+                channel_base_url="http://172.16.200.119:28789",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-2",
+                callback_token="callback-token-2",
+                status="active",
+            )
+            db.add_all([first, second])
+            db.commit()
+            first_id = first.id
+
+        response = self.client.put(
+            f"/api/instances/{first_id}",
+            json={"name": "OC2"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "OC2")
+        self.assertEqual(response.json()["instance_key"], "inst-1")
+
+    def test_connect_instance_allows_same_name_for_different_channel_base_url(self) -> None:
+        first = self.client.post(
+            "/api/instances/connect",
+            json={
+                "name": "OpenClaw",
+                "channel_base_url": "http://172.16.200.119:18789",
+                "channel_account_id": "default",
+            },
+        )
+        second = self.client.post(
+            "/api/instances/connect",
+            json={
+                "name": "OpenClaw",
+                "channel_base_url": "http://172.16.200.119:28789",
+                "channel_account_id": "default",
+            },
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+
+        first_payload = first.json()
+        second_payload = second.json()
+        self.assertNotEqual(first_payload["instance"]["id"], second_payload["instance"]["id"])
+        self.assertNotEqual(first_payload["instance"]["instance_key"], second_payload["instance"]["instance_key"])
+        self.assertEqual(first_payload["instance"]["name"], "OpenClaw")
+        self.assertEqual(second_payload["instance"]["name"], "OpenClaw")
 
 
     def test_agent_dialogue_intervention_dispatches_to_next_agent_when_active(self) -> None:
@@ -2428,6 +2754,212 @@ class Stage1BackendTests(unittest.TestCase):
         payload = conversations_response.json()
         self.assertFalse(any("TestBot2" in (item.get("display_title") or "") for item in payload))
 
+    def test_delete_instance_removes_private_history_but_keeps_group_history(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Delete Target",
+                channel_base_url="https://delete.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            peer_instance = OpenClawInstance(
+                name="Peer OpenClaw",
+                channel_base_url="https://peer.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-abcdef",
+                callback_token="callback-token-456",
+                status="active",
+            )
+            db.add_all([instance, peer_instance])
+            db.flush()
+
+            deleted_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Delete Me",
+                role_name="assistant",
+                enabled=True,
+                ct_id="CTA-DEL-001",
+            )
+            peer_agent = AgentProfile(
+                instance_id=peer_instance.id,
+                agent_key="peer",
+                display_name="Peer Agent",
+                role_name="assistant",
+                enabled=True,
+                ct_id="CTA-PEER-001",
+            )
+            db.add_all([deleted_agent, peer_agent])
+            db.flush()
+
+            direct_conversation = Conversation(
+                type="direct",
+                title="Delete Me Direct",
+                direct_instance_id=instance.id,
+                direct_agent_id=deleted_agent.id,
+            )
+            dialogue_conversation = Conversation(
+                type="agent_dialogue",
+                title="Delete Me ↔ Peer Agent",
+            )
+            group = ChatGroup(name="Keep Group", description="群和群消息应保留")
+            db.add_all([direct_conversation, dialogue_conversation, group])
+            db.flush()
+
+            group_conversation = Conversation(type="group", title="Keep Group", group_id=group.id)
+            db.add(group_conversation)
+            db.flush()
+
+            db.add_all(
+                [
+                    ChatGroupMember(group_id=group.id, instance_id=instance.id, agent_id=deleted_agent.id),
+                    ChatGroupMember(group_id=group.id, instance_id=peer_instance.id, agent_id=peer_agent.id),
+                ]
+            )
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=dialogue_conversation.id,
+                source_agent_id=deleted_agent.id,
+                target_agent_id=peer_agent.id,
+                topic="shared dialogue",
+                status="active",
+                initiator_type="agent",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+            )
+            db.add(dialogue)
+            db.flush()
+
+            direct_message = Message(
+                id="msg_delete_instance_direct_1",
+                conversation_id=direct_conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="delete direct",
+                status="completed",
+            )
+            dialogue_message = Message(
+                id="msg_delete_instance_dialogue_1",
+                conversation_id=dialogue_conversation.id,
+                sender_type="agent",
+                sender_label="Delete Me",
+                content="delete dialogue",
+                status="completed",
+            )
+            group_message = Message(
+                id="msg_delete_instance_group_1",
+                conversation_id=group_conversation.id,
+                sender_type="agent",
+                sender_label="Delete Me",
+                content="keep group",
+                status="completed",
+            )
+            db.add_all([direct_message, dialogue_message, group_message])
+            db.flush()
+
+            direct_dispatch = MessageDispatch(
+                id="dsp_delete_instance_direct_1",
+                message_id=direct_message.id,
+                conversation_id=direct_conversation.id,
+                instance_id=instance.id,
+                agent_id=deleted_agent.id,
+                dispatch_mode="direct",
+                status="completed",
+            )
+            dialogue_dispatch = MessageDispatch(
+                id="dsp_delete_instance_dialogue_1",
+                message_id=dialogue_message.id,
+                conversation_id=dialogue_conversation.id,
+                instance_id=instance.id,
+                agent_id=deleted_agent.id,
+                dispatch_mode="agent_dialogue_relay",
+                status="completed",
+            )
+            group_dispatch = MessageDispatch(
+                id="dsp_delete_instance_group_1",
+                message_id=group_message.id,
+                conversation_id=group_conversation.id,
+                instance_id=instance.id,
+                agent_id=deleted_agent.id,
+                dispatch_mode="group_broadcast",
+                status="completed",
+            )
+            db.add_all([direct_dispatch, dialogue_dispatch, group_dispatch])
+            db.flush()
+
+            db.add_all(
+                [
+                    MessageCallbackEvent(
+                        dispatch_id=direct_dispatch.id,
+                        event_id="evt_delete_instance_direct_1",
+                        event_type="reply.final",
+                        payload_json={"text": "done"},
+                    ),
+                    MessageCallbackEvent(
+                        dispatch_id=dialogue_dispatch.id,
+                        event_id="evt_delete_instance_dialogue_1",
+                        event_type="reply.final",
+                        payload_json={"text": "done"},
+                    ),
+                    MessageCallbackEvent(
+                        dispatch_id=group_dispatch.id,
+                        event_id="evt_delete_instance_group_1",
+                        event_type="reply.final",
+                        payload_json={"text": "done"},
+                    ),
+                ]
+            )
+            db.commit()
+            instance_id = instance.id
+            deleted_agent_id = deleted_agent.id
+            peer_agent_id = peer_agent.id
+            direct_conversation_id = direct_conversation.id
+            dialogue_conversation_id = dialogue_conversation.id
+            group_id = group.id
+            group_conversation_id = group_conversation.id
+
+        response = self.client.delete(f"/api/instances/{instance_id}")
+        self.assertEqual(response.status_code, 204)
+
+        with self.SessionLocal() as db:
+            self.assertIsNone(db.get(OpenClawInstance, instance_id))
+            self.assertIsNone(db.get(AgentProfile, deleted_agent_id))
+            self.assertIsNone(db.get(Conversation, direct_conversation_id))
+            self.assertIsNone(db.get(Conversation, dialogue_conversation_id))
+            self.assertIsNone(db.get(Message, "msg_delete_instance_direct_1"))
+            self.assertIsNone(db.get(Message, "msg_delete_instance_dialogue_1"))
+            self.assertIsNone(db.get(MessageDispatch, "dsp_delete_instance_direct_1"))
+            self.assertIsNone(db.get(MessageDispatch, "dsp_delete_instance_dialogue_1"))
+            self.assertIsNone(
+                db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_delete_instance_direct_1"))
+            )
+            self.assertIsNone(
+                db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_delete_instance_dialogue_1"))
+            )
+            self.assertIsNone(db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == dialogue_conversation_id)))
+
+            self.assertIsNotNone(db.get(ChatGroup, group_id))
+            self.assertIsNotNone(db.get(Conversation, group_conversation_id))
+            self.assertIsNotNone(db.get(Message, "msg_delete_instance_group_1"))
+            self.assertIsNotNone(db.get(MessageDispatch, "dsp_delete_instance_group_1"))
+            self.assertIsNotNone(
+                db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_delete_instance_group_1"))
+            )
+            self.assertIsNone(
+                db.scalar(
+                    select(ChatGroupMember).where(
+                        ChatGroupMember.group_id == group_id,
+                        ChatGroupMember.agent_id == deleted_agent_id,
+                    )
+                )
+            )
+            self.assertIsNotNone(db.get(AgentProfile, peer_agent_id))
+
     def test_list_instances_returns_static_status_and_health_endpoint_returns_runtime_status(self) -> None:
         with self.SessionLocal() as db:
             active_instance = OpenClawInstance(
@@ -2507,6 +3039,130 @@ class Stage1BackendTests(unittest.TestCase):
             assert instance is not None
             self.assertEqual(instance.callback_token, payload["credentials"]["outbound_token"])
             self.assertEqual(instance.channel_signing_secret, payload["credentials"]["inbound_signing_secret"])
+
+    def test_connect_instance_still_creates_credentials_when_channel_is_not_ready(self) -> None:
+        with patch(
+            "src.api.routes.instances.fetch_channel_agents",
+            side_effect=HTTPException(status_code=503, detail="OpenClaw instance is unreachable"),
+        ):
+            response = self.client.post(
+                "/api/instances/connect",
+                json={
+                    "name": "OpenClaw Deferred Connect",
+                    "channel_base_url": "https://example.com",
+                    "channel_account_id": "default",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(payload["imported_agent_count"], 0)
+        self.assertEqual(payload["agent_keys"], [])
+        self.assertTrue(payload["credentials"]["outbound_token"])
+        self.assertTrue(payload["credentials"]["inbound_signing_secret"])
+
+        with self.SessionLocal() as db:
+            instance = db.scalar(select(OpenClawInstance).where(OpenClawInstance.name == "OpenClaw Deferred Connect"))
+            assert instance is not None
+            self.assertEqual(instance.callback_token, payload["credentials"]["outbound_token"])
+            self.assertEqual(instance.channel_signing_secret, payload["credentials"]["inbound_signing_secret"])
+
+    def test_send_direct_message_returns_clear_detail_when_channel_signature_mismatch(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Auth",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw Auth / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+
+        request = httpx.Request("POST", "https://example.com/claw-team/v1/inbound")
+        response = httpx.Response(status_code=401, request=request)
+        with patch(
+            "src.integrations.channel_client.httpx.AsyncClient.request",
+            new=AsyncMock(side_effect=httpx.HTTPStatusError("401 Unauthorized", request=request, response=response)),
+        ):
+            result = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "你好"},
+            )
+
+        self.assertEqual(result.status_code, 400, result.text)
+        self.assertEqual(result.json()["detail"], "OpenClaw instance signature mismatch")
+
+    def test_sync_agents_returns_clear_detail_when_channel_is_unreachable(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Offline",
+                channel_base_url="https://offline.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.commit()
+            instance_id = instance.id
+
+        connect_error = httpx.ConnectError("connect failed")
+        mocked_client = unittest.mock.MagicMock()
+        mocked_client.get.side_effect = connect_error
+
+        with patch("src.api.routes.instances.httpx.Client") as client_cls:
+            client_cls.return_value.__enter__.return_value = mocked_client
+            result = self.client.post(f"/api/instances/{instance_id}/sync-agents")
+
+        self.assertEqual(result.status_code, 503, result.text)
+        self.assertEqual(result.json()["detail"], "OpenClaw instance is unreachable")
+
+    def test_sync_agents_returns_clear_detail_when_channel_times_out(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Timeout",
+                channel_base_url="https://timeout.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.commit()
+            instance_id = instance.id
+
+        timeout_error = httpx.ReadTimeout("timed out")
+        mocked_client = unittest.mock.MagicMock()
+        mocked_client.get.side_effect = timeout_error
+
+        with patch("src.api.routes.instances.httpx.Client") as client_cls:
+            client_cls.return_value.__enter__.return_value = mocked_client
+            result = self.client.post(f"/api/instances/{instance_id}/sync-agents")
+
+        self.assertEqual(result.status_code, 504, result.text)
+        self.assertEqual(result.json()["detail"], "OpenClaw timed out")
 
     def test_settings_default_database_url_uses_persistent_app_data_path(self) -> None:
         config_module = importlib.import_module("src.core.config")
@@ -2851,6 +3507,177 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(final_agent_messages[0]["status"], "completed")
         self.assertEqual(final_agent_messages[0]["content"], "第一段第二段，最终完成")
 
+    def test_callback_empty_reply_final_does_not_create_empty_agent_message(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Empty Final",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw Empty Final / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            user_message = Message(
+                id="msg_user_empty_final_001",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="第二条消息",
+                status="accepted",
+            )
+            dispatch = MessageDispatch(
+                id="dsp_user_empty_final_001",
+                message_id=user_message.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=agent.id,
+                dispatch_mode="direct",
+                channel_message_id=user_message.id,
+                status="accepted",
+            )
+            db.add_all([user_message, dispatch])
+            db.commit()
+            conversation_id = conversation.id
+
+        response = self.client.post(
+            "/api/v1/claw-team/events",
+            json={
+                "eventId": "evt_empty_final_001",
+                "eventType": "reply.final",
+                "correlation": {
+                    "messageId": "msg_user_empty_final_001",
+                    "agentId": "main",
+                    "sessionKey": "agent:main:main",
+                },
+                "payload": {"text": ""},
+            },
+            headers={"Authorization": "Bearer callback-token-123"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(messages_response.status_code, 200)
+        payload = messages_response.json()
+        agent_messages = [item for item in payload["messages"] if item["sender_type"] == "agent"]
+        self.assertEqual(agent_messages, [])
+
+    def test_callback_empty_reply_final_keeps_streamed_content(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Empty Final Stream",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw Empty Final Stream / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            user_message = Message(
+                id="msg_user_empty_final_stream_001",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="连续消息",
+                status="accepted",
+            )
+            dispatch = MessageDispatch(
+                id="dsp_user_empty_final_stream_001",
+                message_id=user_message.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=agent.id,
+                dispatch_mode="direct",
+                channel_message_id=user_message.id,
+                status="accepted",
+            )
+            db.add_all([user_message, dispatch])
+            db.commit()
+            conversation_id = conversation.id
+
+        headers = {"Authorization": "Bearer callback-token-123"}
+        chunk_response = self.client.post(
+            "/api/v1/claw-team/events",
+            json={
+                "eventId": "evt_empty_final_stream_chunk_001",
+                "eventType": "reply.chunk",
+                "correlation": {
+                    "messageId": "msg_user_empty_final_stream_001",
+                    "agentId": "main",
+                    "sessionKey": "agent:main:main",
+                },
+                "payload": {"text": "收到！测试消息 2 ✅ 测试消息 3 ✅"},
+            },
+            headers=headers,
+        )
+        self.assertEqual(chunk_response.status_code, 200)
+
+        final_response = self.client.post(
+            "/api/v1/claw-team/events",
+            json={
+                "eventId": "evt_empty_final_stream_final_001",
+                "eventType": "reply.final",
+                "correlation": {
+                    "messageId": "msg_user_empty_final_stream_001",
+                    "agentId": "main",
+                    "sessionKey": "agent:main:main",
+                },
+                "payload": {"text": ""},
+            },
+            headers=headers,
+        )
+        self.assertEqual(final_response.status_code, 200)
+
+        messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(messages_response.status_code, 200)
+        payload = messages_response.json()
+        agent_messages = [item for item in payload["messages"] if item["sender_type"] == "agent"]
+        self.assertEqual(len(agent_messages), 1)
+        self.assertEqual(agent_messages[0]["content"], "收到！测试消息 2 ✅ 测试消息 3 ✅")
+        self.assertEqual(agent_messages[0]["status"], "completed")
+
     def test_stale_streaming_dispatch_is_finalized_when_loading_messages(self) -> None:
         """
         如果 OpenClaw 在回复过程中重启，dispatch 可能永远停在 streaming。
@@ -2932,333 +3759,6 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(dispatches["dsp_user_recover_001"]["status"], "failed")
         self.assertEqual(messages["msg_user_recover_001"]["status"], "failed")
         self.assertEqual(messages["msg_agent_dsp_user_recover_001"]["status"], "failed")
-
-    def test_tasks_crud_roundtrip(self) -> None:
-        """
-        任务模块第一阶段至少要能真实完成：
-        创建、查询、完成。
-        """
-        with self.SessionLocal() as db:
-            instance = OpenClawInstance(
-                name="OpenClaw Tasks",
-                channel_base_url="https://example.com",
-                channel_account_id="default",
-                channel_signing_secret="signing-secret-123456",
-                callback_token="callback-token-123",
-                status="active",
-            )
-            db.add(instance)
-            db.flush()
-
-            agent = AgentProfile(
-                instance_id=instance.id,
-                agent_key="task-agent",
-                display_name="任务 Agent",
-                role_name="executor",
-                enabled=True,
-            )
-            db.add(agent)
-            db.commit()
-            instance_id = instance.id
-            agent_id = agent.id
-
-        create_response = self.client.post(
-            "/api/tasks",
-            json={
-                "title": "补任务接口",
-                "description": "把任务页改成真实后端数据",
-                "priority": "high",
-                "tags": ["任务", "接口"],
-                "assignee_instance_id": instance_id,
-                "assignee_agent_id": agent_id,
-            },
-        )
-        self.assertEqual(create_response.status_code, 200)
-        created = create_response.json()
-        self.assertEqual(created["source"], "server")
-        self.assertEqual(created["status"], "in_progress")
-        self.assertEqual(created["assignee"]["agent_name"], "任务 Agent")
-        self.assertEqual(len(created["timeline"]), 1)
-
-        list_response = self.client.get("/api/tasks", params={"status": "in_progress", "keyword": "任务接口"})
-        self.assertEqual(list_response.status_code, 200)
-        listed = list_response.json()
-        self.assertEqual(len(listed), 1)
-        self.assertEqual(listed[0]["id"], created["id"])
-
-        complete_response = self.client.post(
-            f"/api/tasks/{created['id']}/complete",
-            json={"comment": "接口已接通"},
-        )
-        self.assertEqual(complete_response.status_code, 200)
-        completed = complete_response.json()
-        self.assertEqual(completed["status"], "completed")
-        self.assertEqual(completed["comment_count"], 2)
-        self.assertEqual(completed["timeline"][-1]["content"], "接口已接通")
-
-        with self.SessionLocal() as db:
-            task = db.get(Task, created["id"])
-            self.assertIsNotNone(task)
-            self.assertEqual(task.status, "completed")
-
-    def test_tasks_support_parent_and_child_structure(self) -> None:
-        """
-        第一阶段允许两级任务：
-        一个父任务下面挂若干子任务，但不能再往下继续拆。
-        """
-        with self.SessionLocal() as db:
-            instance = OpenClawInstance(
-                name="OpenClaw Hierarchy",
-                channel_base_url="https://example.com",
-                channel_account_id="default",
-                channel_signing_secret="signing-secret-123456",
-                callback_token="callback-token-123",
-                status="active",
-            )
-            db.add(instance)
-            db.flush()
-
-            agent = AgentProfile(
-                instance_id=instance.id,
-                agent_key="hierarchy-agent",
-                display_name="层级 Agent",
-                role_name="executor",
-                enabled=True,
-            )
-            db.add(agent)
-            db.commit()
-            instance_id = instance.id
-            agent_id = agent.id
-
-        create_response = self.client.post(
-            "/api/tasks",
-            json={
-                "title": "完成登录模块收尾",
-                "description": "把登录模块收敛到可交付状态。",
-                "priority": "high",
-                "tags": ["登录"],
-                "assignee_instance_id": instance_id,
-                "assignee_agent_id": agent_id,
-                "children": [
-                    {
-                        "title": "补齐登录页交互",
-                        "description": "完善输入反馈和错误提示。",
-                        "priority": "high",
-                        "tags": ["前端"],
-                    },
-                    {
-                        "title": "补齐登录测试",
-                        "description": "增加关键流程测试覆盖。",
-                        "priority": "medium",
-                        "tags": ["测试"],
-                    },
-                ],
-            },
-        )
-        self.assertEqual(create_response.status_code, 200)
-        created = create_response.json()
-        self.assertIsNone(created["parent_task_id"])
-        self.assertEqual(len(created["children"]), 2)
-        self.assertEqual(created["children"][0]["parent_task_id"], created["id"])
-        self.assertEqual(created["children"][1]["parent_task_id"], created["id"])
-
-        list_response = self.client.get("/api/tasks", params={"status": "all", "keyword": "登录模块"})
-        self.assertEqual(list_response.status_code, 200)
-        listed = list_response.json()
-        self.assertEqual(len(listed), 1)
-        self.assertEqual(listed[0]["id"], created["id"])
-        self.assertEqual(len(listed[0]["children"]), 2)
-
-    def test_tasks_reject_third_level_children(self) -> None:
-        """
-        子任务不允许继续创建孙任务，避免层级无限扩展。
-        """
-        with self.SessionLocal() as db:
-            instance = OpenClawInstance(
-                name="OpenClaw Third Level",
-                channel_base_url="https://example.com",
-                channel_account_id="default",
-                channel_signing_secret="signing-secret-123456",
-                callback_token="callback-token-123",
-                status="active",
-            )
-            db.add(instance)
-            db.flush()
-
-            agent = AgentProfile(
-                instance_id=instance.id,
-                agent_key="nested-agent",
-                display_name="嵌套 Agent",
-                role_name="executor",
-                enabled=True,
-            )
-            db.add(agent)
-            db.flush()
-
-            parent = Task(
-                id="task_parent_001",
-                title="父任务",
-                description="父任务",
-                priority="medium",
-                status="in_progress",
-                source="server",
-                assignee_instance_id=instance.id,
-                assignee_agent_id=agent.id,
-                tags_json='["父任务"]',
-                comment_count=1,
-            )
-            child = Task(
-                id="task_child_001",
-                parent_task_id=parent.id,
-                title="子任务",
-                description="子任务",
-                priority="medium",
-                status="in_progress",
-                source="server",
-                assignee_instance_id=instance.id,
-                assignee_agent_id=agent.id,
-                tags_json='["子任务"]',
-                comment_count=1,
-            )
-            db.add_all([parent, child])
-            db.commit()
-            instance_id = instance.id
-            agent_id = agent.id
-
-        response = self.client.post(
-            "/api/tasks",
-            json={
-                "title": "孙任务",
-                "description": "不应被允许。",
-                "priority": "medium",
-                "tags": [],
-                "assignee_instance_id": instance_id,
-                "assignee_agent_id": agent_id,
-                "parent_task_id": "task_child_001",
-            },
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "third-level tasks are not supported")
-
-    def test_delete_task_removes_direct_children(self) -> None:
-        """
-        删除父任务时，应一并删除它的直接子任务和时间线事件。
-        """
-        with self.SessionLocal() as db:
-            instance = OpenClawInstance(
-                name="OpenClaw Delete",
-                channel_base_url="https://example.com",
-                channel_account_id="default",
-                channel_signing_secret="signing-secret-123456",
-                callback_token="callback-token-123",
-                status="active",
-            )
-            db.add(instance)
-            db.flush()
-
-            agent = AgentProfile(
-                instance_id=instance.id,
-                agent_key="delete-agent",
-                display_name="删除 Agent",
-                role_name="executor",
-                enabled=True,
-            )
-            db.add(agent)
-            db.flush()
-
-            parent = Task(
-                id="task_delete_parent_001",
-                title="待删除父任务",
-                description="测试删除",
-                priority="medium",
-                status="in_progress",
-                source="server",
-                assignee_instance_id=instance.id,
-                assignee_agent_id=agent.id,
-                tags_json='["删除"]',
-                comment_count=1,
-            )
-            child = Task(
-                id="task_delete_child_001",
-                parent_task_id=parent.id,
-                title="待删除子任务",
-                description="测试删除",
-                priority="medium",
-                status="in_progress",
-                source="server",
-                assignee_instance_id=instance.id,
-                assignee_agent_id=agent.id,
-                tags_json='["删除"]',
-                comment_count=1,
-            )
-            db.add_all([parent, child])
-            db.commit()
-
-        response = self.client.delete("/api/tasks/task_delete_parent_001")
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["task_id"], "task_delete_parent_001")
-        self.assertTrue(payload["deleted"])
-        self.assertEqual(payload["deleted_child_count"], 1)
-
-        with self.SessionLocal() as db:
-            self.assertIsNone(db.get(Task, "task_delete_parent_001"))
-            self.assertIsNone(db.get(Task, "task_delete_child_001"))
-
-    def test_task_append_comment(self) -> None:
-        """
-        Task Skill 需要能给任务追加进展评论，
-        所以后端至少要支持追加一条任务时间线事件。
-        """
-        with self.SessionLocal() as db:
-            instance = OpenClawInstance(
-                name="OpenClaw Comment",
-                channel_base_url="https://example.com",
-                channel_account_id="default",
-                channel_signing_secret="signing-secret-123456",
-                callback_token="callback-token-123",
-                status="active",
-            )
-            db.add(instance)
-            db.flush()
-
-            agent = AgentProfile(
-                instance_id=instance.id,
-                agent_key="comment-agent",
-                display_name="评论 Agent",
-                role_name="executor",
-                enabled=True,
-            )
-            db.add(agent)
-            db.flush()
-
-            task = Task(
-                id="task_comment_001",
-                title="补任务评论接口",
-                description="让任务支持追加评论",
-                priority="medium",
-                status="in_progress",
-                source="server",
-                assignee_instance_id=instance.id,
-                assignee_agent_id=agent.id,
-                tags_json='["任务"]',
-                comment_count=1,
-            )
-            db.add(task)
-            db.commit()
-
-        response = self.client.post(
-            "/api/tasks/task_comment_001/comments",
-            json={"comment": "已完成接口设计，下一步补 Skill 调用。", "author_type": "agent"},
-        )
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["task_id"], "task_comment_001")
-        self.assertEqual(payload["comment_count"], 2)
-        self.assertEqual(payload["latest_entry"]["type"], "agent")
-        self.assertEqual(payload["latest_entry"]["label"], "Agent 更新")
-        self.assertEqual(payload["latest_entry"]["content"], "已完成接口设计，下一步补 Skill 调用。")
-
 
 if __name__ == "__main__":
     unittest.main()

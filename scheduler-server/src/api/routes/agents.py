@@ -9,68 +9,22 @@
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
 from src.integrations.channel_client import channel_client
-from src.models.agent_dialogue import AgentDialogue
 from src.models.agent_profile import AgentProfile
-from src.models.conversation import Conversation
-from src.models.message import Message
-from src.models.message_callback_event import MessageCallbackEvent
-from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
 from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate
 from src.schemas.common import validate_orm
+from src.services.agent_cleanup import delete_agent_private_conversations
 from src.services.agent_ct_id import ensure_agent_ct_id
 
 router = APIRouter(prefix="/api", tags=["agents"])
 
-
-def delete_removed_agent_direct_conversations(db: Session, *, agent_id: int) -> None:
-    """
-    Agent 从 OpenClaw 消失后，清掉它相关的联系人会话及关联记录。
-
-    这里故意只清“联系人视角”的两类会话：
-    1. direct conversation
-    2. agent_dialogue conversation
-
-    群聊不在这里删除，因为群本身是独立业务对象，不属于某一个联系人的历史记录。
-    """
-    direct_conversation_ids = list(
-        db.scalars(
-            select(Conversation.id).where(
-                Conversation.type == "direct",
-                Conversation.direct_agent_id == agent_id,
-            )
-        )
-    )
-    dialogue_conversation_ids = list(
-        db.scalars(
-            select(AgentDialogue.conversation_id).where(
-                (AgentDialogue.source_agent_id == agent_id) | (AgentDialogue.target_agent_id == agent_id)
-            )
-        )
-    )
-    conversation_ids = sorted(set(direct_conversation_ids + dialogue_conversation_ids))
-    if not conversation_ids:
-        return
-
-    dispatch_ids = list(
-        db.scalars(
-            select(MessageDispatch.id).where(MessageDispatch.conversation_id.in_(conversation_ids))
-        )
-    )
-    if dispatch_ids:
-        db.execute(delete(MessageCallbackEvent).where(MessageCallbackEvent.dispatch_id.in_(dispatch_ids)))
-
-    db.execute(delete(AgentDialogue).where(AgentDialogue.conversation_id.in_(conversation_ids)))
-    db.execute(delete(MessageDispatch).where(MessageDispatch.conversation_id.in_(conversation_ids)))
-    db.execute(delete(Message).where(Message.conversation_id.in_(conversation_ids)))
-    db.execute(delete(Conversation).where(Conversation.id.in_(conversation_ids)))
-
+AGENT_SYNC_TIMEOUT = httpx.Timeout(60.0, connect=5.0)
 
 def can_edit_agent_profile(agent: AgentProfile) -> bool:
     """
@@ -87,15 +41,27 @@ def can_edit_agent_profile(agent: AgentProfile) -> bool:
 def fetch_channel_agents(instance: OpenClawInstance) -> list[dict]:
     base_url = instance.channel_base_url.rstrip("/")
     try:
-        with httpx.Client(timeout=10.0, verify=False) as client:
+        with httpx.Client(timeout=AGENT_SYNC_TIMEOUT, verify=False) as client:
             response = client.get(f"{base_url}/claw-team/v1/agents")
             response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=400, detail=f"failed to sync agents: {exc}") from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
+    except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+        raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise HTTPException(
+                status_code=502,
+                detail="claw-team plugin is unavailable on the OpenClaw instance",
+            ) from exc
+        raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
 
-    payload = response.json()
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
     if not isinstance(payload, list):
-        raise HTTPException(status_code=400, detail="invalid agents response")
+        raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response")
     return [item for item in payload if isinstance(item, dict)]
 
 
@@ -161,7 +127,7 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
         existing_agents = db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance.id)).all()
         for agent in existing_agents:
             if agent.agent_key not in imported_keys:
-                delete_removed_agent_direct_conversations(db, agent_id=agent.id)
+                delete_agent_private_conversations(db, agent_id=agent.id)
                 agent.removed_from_openclaw = True
 
     db.flush()
@@ -217,10 +183,21 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
             instance=instance,
             payload=remote_create_payload,
         )
-    except httpx.HTTPError as exc:
-        response = getattr(exc, "response", None)
-        detail = response.text if response is not None else str(exc)
-        raise HTTPException(status_code=400, detail=f"failed to create real agent: {detail}") from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
+    except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+        raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in {401, 403}:
+            raise HTTPException(status_code=400, detail="OpenClaw instance signature mismatch") from exc
+        if exc.response.status_code == 404:
+            raise HTTPException(
+                status_code=502,
+                detail="claw-team plugin is unavailable on the OpenClaw instance",
+            ) from exc
+        raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
 
     agent_key = str(created_remote_agent.get("id") or created_remote_agent.get("openclawAgentRef") or payload.agent_key).strip()
     display_name = str(created_remote_agent.get("name") or payload.display_name).strip() or payload.display_name
@@ -276,10 +253,21 @@ async def get_agent_profile(agent_id: int, db: Session = Depends(db_session)) ->
             instance=instance,
             agent_key=agent.agent_key,
         )
-    except httpx.HTTPError as exc:
-        response = getattr(exc, "response", None)
-        detail = response.text if response is not None else str(exc)
-        raise HTTPException(status_code=400, detail=f"failed to load agent profile: {detail}") from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
+    except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+        raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in {401, 403}:
+            raise HTTPException(status_code=400, detail="OpenClaw instance signature mismatch") from exc
+        if exc.response.status_code == 404:
+            raise HTTPException(
+                status_code=502,
+                detail="claw-team plugin is unavailable on the OpenClaw instance",
+            ) from exc
+        raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
 
     return AgentProfileRead(
         **dump_model(validate_orm(AgentRead, agent)),
@@ -323,10 +311,21 @@ async def update_agent(agent_id: int, payload: AgentUpdate, db: Session = Depend
                 agent_key=agent.agent_key,
                 payload=remote_payload,
             )
-        except httpx.HTTPError as exc:
-            response = getattr(exc, "response", None)
-            detail = response.text if response is not None else str(exc)
-            raise HTTPException(status_code=400, detail=f"failed to update real agent: {detail}") from exc
+        except httpx.TimeoutException as exc:
+            raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
+        except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+            raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in {401, 403}:
+                raise HTTPException(status_code=400, detail="OpenClaw instance signature mismatch") from exc
+            if exc.response.status_code == 404:
+                raise HTTPException(
+                    status_code=502,
+                    detail="claw-team plugin is unavailable on the OpenClaw instance",
+                ) from exc
+            raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
 
     for key, value in payload_data.items():
         if key in {"identity_md", "soul_md", "user_md", "memory_md"}:

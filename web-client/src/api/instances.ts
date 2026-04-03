@@ -33,7 +33,9 @@ export async function connectOpenClaw(payload: {
     channel_base_url: string;
     channel_account_id?: string;
 }): Promise<ConnectInstanceResponseApi> {
-    const response = await apiClient.post<ConnectInstanceResponseApi>("/api/instances/connect", payload);
+    const response = await apiClient.post<ConnectInstanceResponseApi>("/api/instances/connect", payload, {
+        timeout: 60000,
+    });
     return response.data;
 }
 
@@ -51,7 +53,9 @@ export async function syncOpenClawAgents(instanceId: number): Promise<{
         instance: InstanceReadApi;
         imported_agent_count: number;
         agent_keys: string[];
-    }>(`/api/instances/${instanceId}/sync-agents`);
+    }>(`/api/instances/${instanceId}/sync-agents`, undefined, {
+        timeout: 60000,
+    });
     return response.data;
 }
 
@@ -77,4 +81,8 @@ export async function enableInstance(instanceId: number): Promise<InstanceReadAp
 export async function disableInstance(instanceId: number): Promise<InstanceReadApi> {
     const response = await apiClient.post<InstanceReadApi>(`/api/instances/${instanceId}/disable`);
     return response.data;
+}
+
+export async function deleteInstance(instanceId: number): Promise<void> {
+    await apiClient.delete(`/api/instances/${instanceId}`);
 }

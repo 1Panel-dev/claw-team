@@ -4,6 +4,7 @@
 """
 from pathlib import Path
 from typing import Generator
+from uuid import uuid4
 
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
@@ -48,7 +49,8 @@ if is_sqlite:
             # WAL 更适合我们现在这种“读多写多 + callback 并发补写”的场景。
             cursor.execute("PRAGMA journal_mode=WAL;")
             cursor.execute("PRAGMA synchronous=NORMAL;")
-            cursor.execute("PRAGMA foreign_keys=ON;")
+            # 第一阶段先不用数据库强外键，把级联清理放在代码层控制，避免共享数据被底层约束误伤。
+            cursor.execute("PRAGMA foreign_keys=OFF;")
             cursor.execute("PRAGMA busy_timeout=30000;")
         finally:
             cursor.close()
@@ -137,6 +139,94 @@ def ensure_runtime_schema() -> None:
             statements.append("ALTER TABLE agent_dialogues ADD COLUMN hard_message_limit INTEGER NOT NULL DEFAULT 20")
         if "soft_limit_warned_at" not in dialogue_columns:
             statements.append("ALTER TABLE agent_dialogues ADD COLUMN soft_limit_warned_at DATETIME NULL")
+
+    if "openclaw_instances" in table_names and is_sqlite:
+        instance_columns = {column["name"] for column in inspector.get_columns("openclaw_instances")}
+        with engine.begin() as connection:
+            index_rows = connection.execute(text("PRAGMA index_list('openclaw_instances')")).mappings().all()
+            name_is_unique = False
+            for row in index_rows:
+                if not row.get("unique"):
+                    continue
+                index_name = row["name"]
+                index_info = connection.execute(text(f"PRAGMA index_info('{index_name}')")).mappings().all()
+                index_columns = [item["name"] for item in index_info]
+                if index_columns == ["name"]:
+                    name_is_unique = True
+                    break
+
+            if "instance_key" not in instance_columns or name_is_unique:
+                connection.execute(text("PRAGMA foreign_keys=OFF"))
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS openclaw_instances__new (
+                            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                            instance_key VARCHAR(36) NOT NULL,
+                            name VARCHAR(120) NOT NULL,
+                            channel_base_url VARCHAR(500) NOT NULL,
+                            channel_account_id VARCHAR(120) NOT NULL DEFAULT 'default',
+                            channel_signing_secret VARCHAR(255) NOT NULL,
+                            callback_token VARCHAR(255) NOT NULL,
+                            status VARCHAR(32) NOT NULL DEFAULT 'active',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                rows = connection.execute(
+                    text(
+                        """
+                        SELECT id, name, channel_base_url, channel_account_id,
+                               channel_signing_secret, callback_token, status,
+                               created_at, updated_at
+                        FROM openclaw_instances
+                        ORDER BY id
+                        """
+                    )
+                ).mappings().all()
+                for row in rows:
+                    connection.execute(
+                        text(
+                            """
+                            INSERT INTO openclaw_instances__new (
+                                id, instance_key, name, channel_base_url, channel_account_id,
+                                channel_signing_secret, callback_token, status, created_at, updated_at
+                            ) VALUES (
+                                :id, :instance_key, :name, :channel_base_url, :channel_account_id,
+                                :channel_signing_secret, :callback_token, :status, :created_at, :updated_at
+                            )
+                            """
+                        ),
+                        {
+                            "id": row["id"],
+                            "instance_key": str(uuid4()),
+                            "name": row["name"],
+                            "channel_base_url": row["channel_base_url"],
+                            "channel_account_id": row["channel_account_id"],
+                            "channel_signing_secret": row["channel_signing_secret"],
+                            "callback_token": row["callback_token"],
+                            "status": row["status"],
+                            "created_at": row["created_at"],
+                            "updated_at": row["updated_at"],
+                        },
+                    )
+                connection.execute(text("DROP TABLE openclaw_instances"))
+                connection.execute(text("ALTER TABLE openclaw_instances__new RENAME TO openclaw_instances"))
+                connection.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS ix_openclaw_instances_instance_key "
+                        "ON openclaw_instances (instance_key)"
+                    )
+                )
+                connection.execute(text("PRAGMA foreign_keys=ON"))
+
+    if "app_users" in table_names:
+        user_columns = {column["name"] for column in inspector.get_columns("app_users")}
+        if "display_name" not in user_columns:
+            statements.append("ALTER TABLE app_users ADD COLUMN display_name VARCHAR(120)")
+            statements.append("UPDATE app_users SET display_name = username WHERE display_name IS NULL OR display_name = ''")
 
     if not statements:
         return

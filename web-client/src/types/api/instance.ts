@@ -1,5 +1,6 @@
 export interface InstanceReadApi {
     id: number;
+    instance_key: string;
     name: string;
     channel_base_url: string;
     channel_account_id: string;

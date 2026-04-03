@@ -37,6 +37,38 @@
             </template>
           </el-input>
         </el-form-item>
+
+        <el-form-item>
+          <template #label>
+            <span class="drawer-label-with-tip">
+              <span>{{ t("openclaw.gatewayToken") }}</span>
+              <el-tooltip :content="t('openclaw.gatewayTokenHint')" placement="top">
+                <el-icon class="drawer-label-tip"><InfoFilled /></el-icon>
+              </el-tooltip>
+            </span>
+          </template>
+          <el-input v-model="form.gateway_token" :placeholder="t('openclaw.gatewayTokenPlaceholder')" />
+        </el-form-item>
+
+        <el-form-item>
+          <template #label>
+            <span class="drawer-label-with-tip">
+              <span>{{ t("openclaw.openclawJsonConfig") }}</span>
+              <el-tooltip :content="t('openclaw.copyOpenclawJsonConfig')" placement="top">
+                <el-button text @click="copyOpenClawConfig">
+                  <el-icon><DocumentCopy /></el-icon>
+                </el-button>
+              </el-tooltip>
+            </span>
+          </template>
+          <el-input
+            :model-value="maskedOpenClawConfig"
+            type="textarea"
+            readonly
+            :autosize="{ minRows: 12, maxRows: 18 }"
+          />
+          <div class="drawer-config-help">{{ t("openclaw.openclawJsonConfigHelp") }}</div>
+        </el-form-item>
       </el-form>
     </div>
 
@@ -59,8 +91,7 @@
  * 这样能尽快把实例管理链路补齐，而不把高级配置过早塞进 UI。
  */
 import { computed, reactive, watch } from "vue";
-import { ElMessage } from "element-plus/es/components/message/index";
-import { DocumentCopy } from "@element-plus/icons-vue";
+import { DocumentCopy, InfoFilled } from "@element-plus/icons-vue";
 import { useI18n } from "@/composables/useI18n";
 import type { InstanceCredentialsReadApi } from "@/types/api/instance";
 
@@ -100,6 +131,7 @@ const form = reactive({
     name: "",
     channel_base_url: "",
     channel_account_id: "default",
+    gateway_token: "",
 });
 const { t } = useI18n();
 
@@ -117,11 +149,13 @@ watch(
             form.name = props.initialValue.name;
             form.channel_base_url = props.initialValue.channel_base_url;
             form.channel_account_id = props.initialValue.channel_account_id;
+            form.gateway_token = "";
             return;
         }
         form.name = "";
         form.channel_base_url = "";
         form.channel_account_id = "default";
+        form.gateway_token = "";
     },
 );
 
@@ -157,12 +191,135 @@ function maskedSecret(value: string) {
     return value ? "••••••••••••••••••••••••" : "";
 }
 
+function buildOpenClawConfig(maskSecrets: boolean) {
+    if (!props.credentials) {
+        return "";
+    }
+    const backendBaseUrl = resolveBackendBaseUrl();
+    return JSON.stringify({
+        hooks: {
+            internal: {
+                enabled: true,
+                load: {
+                    extraDirs: [
+                        "/home/node/.openclaw/extensions/claw-team/hooks",
+                    ],
+                },
+                entries: {
+                    "webchat-mirror": {
+                        enabled: true,
+                    },
+                },
+            },
+        },
+        skills: {
+            load: {
+                extraDirs: [
+                    "/home/node/.openclaw/extensions/claw-team/skills",
+                ],
+            },
+            entries: {
+                "ct-chat": {
+                    enabled: true,
+                },
+            },
+        },
+        channels: {
+            "claw-team": {
+                accounts: {
+                    default: {
+                        enabled: true,
+                        baseUrl: backendBaseUrl,
+                        outboundToken: maskSecrets ? maskedSecret(props.credentials.outbound_token) : props.credentials.outbound_token,
+                        inboundSigningSecret: maskSecrets ? maskedSecret(props.credentials.inbound_signing_secret) : props.credentials.inbound_signing_secret,
+                        gateway: {
+                            baseUrl: form.channel_base_url.trim(),
+                            token: maskSecrets ? maskedSecret(form.gateway_token.trim()) : form.gateway_token.trim(),
+                            model: "openclaw",
+                            stream: true,
+                            allowInsecureTls: true,
+                        },
+                        agentDirectory: {
+                            allowedAgentIds: ["main"],
+                            aliases: {},
+                        },
+                    },
+                },
+            },
+        },
+    }, null, 2);
+}
+
+const generatedOpenClawConfig = computed(() => buildOpenClawConfig(false));
+const maskedOpenClawConfig = computed(() => buildOpenClawConfig(true));
+
+function resolveBackendBaseUrl() {
+    const explicit = import.meta.env.VITE_API_BASE_URL?.trim();
+    if (explicit) {
+        return explicit;
+    }
+    const devProxyTarget = import.meta.env.VITE_DEV_API_PROXY_TARGET?.trim();
+    if (devProxyTarget) {
+        return devProxyTarget;
+    }
+    if (typeof window !== "undefined" && window.location?.origin) {
+        return window.location.origin;
+    }
+    return "http://127.0.0.1:18080";
+}
+
 async function copyCredential(key: keyof InstanceCredentialsReadApi) {
     if (!props.credentials) {
         return;
     }
+    const value = props.credentials[key];
     try {
-        await navigator.clipboard.writeText(props.credentials[key]);
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+        } else {
+            const textarea = document.createElement("textarea");
+            textarea.value = value;
+            textarea.setAttribute("readonly", "true");
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand("copy");
+            document.body.removeChild(textarea);
+            if (!copied) {
+                throw new Error(t("openclaw.copyFailed"));
+            }
+        }
+        ElMessage.success(t("openclaw.copySuccess"));
+    } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : String(error));
+    }
+}
+
+async function copyOpenClawConfig() {
+    const copyValue = generatedOpenClawConfig.value
+        .replace(/^\{\n/, "")
+        .replace(/\n\}$/, "");
+    if (!copyValue) {
+        return;
+    }
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(copyValue);
+        } else {
+            const textarea = document.createElement("textarea");
+            textarea.value = copyValue;
+            textarea.setAttribute("readonly", "true");
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand("copy");
+            document.body.removeChild(textarea);
+            if (!copied) {
+                throw new Error(t("openclaw.copyFailed"));
+            }
+        }
         ElMessage.success(t("openclaw.copySuccess"));
     } catch (error) {
         ElMessage.error(error instanceof Error ? error.message : String(error));
@@ -181,6 +338,25 @@ async function copyCredential(key: keyof InstanceCredentialsReadApi) {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.drawer-label-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drawer-label-tip {
+  color: #909399;
+  cursor: help;
+}
+
+.drawer-config-help {
+  margin-bottom: 8px;
+  color: #606266;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  white-space: pre-line;
 }
 
 </style>

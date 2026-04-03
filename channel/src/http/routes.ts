@@ -26,7 +26,7 @@ export function createClawTeamRoutes(params: {
         const pathname = url.pathname;
 
         if (
-            handleCatalogRoutes({
+            await handleCatalogRoutes({
                 pathname,
                 method: req.method,
                 res,

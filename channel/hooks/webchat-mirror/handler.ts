@@ -25,7 +25,6 @@ const ASSISTANT_SENDER_TYPE = "assistant";
 const USER_SENDER_TYPE = "user";
 const ASSISTANT_MIRROR_POLL_INTERVAL_MS = 1000;
 const ASSISTANT_MIRROR_MAX_WAIT_MS = 10 * 60 * 1000;
-const DEBUG_LOG_PATH = "/tmp/webchat-mirror.log";
 
 type HookEvent = {
   type?: string;
@@ -89,15 +88,6 @@ type MirrorableTranscriptMessage = {
   content: string;
   isTerminalAssistant: boolean;
 };
-
-function debugLog(event: string, payload: Record<string, unknown> = {}): void {
-  try {
-    const line = `${new Date().toISOString()} ${event} ${JSON.stringify(payload)}\n`;
-    fs.appendFileSync(DEBUG_LOG_PATH, line, "utf8");
-  } catch {
-    // 调试日志失败不应影响主链路。
-  }
-}
 
 function getSkipReason(event: HookEvent): string | null {
   if (event.type !== "message") {
@@ -546,32 +536,13 @@ async function mirrorAssistantReplyFromTranscript(params: {
   // Web UI 里的一轮回复可能会走很长的工具链，尤其是代码搜索、外部调用或 Agent 对话场景。
   // 这里不能只等几十秒，否则主会话最终已经有成文回复，镜像却提前超时放弃。
   const maxAttempts = Math.ceil(ASSISTANT_MIRROR_MAX_WAIT_MS / ASSISTANT_MIRROR_POLL_INTERVAL_MS);
-  debugLog("assistant_poll_start", {
-    sessionKey,
-    userMessageId,
-    mirroredUserMessageId: params.mirroredUserMessageId,
-    expectedUserContent,
-    maxAttempts,
-  });
   for (let i = 0; i < maxAttempts; i += 1) {
     await sleep(ASSISTANT_MIRROR_POLL_INTERVAL_MS);
     if (!transcriptPath || !fs.existsSync(transcriptPath)) {
       transcriptPath = (await resolveTranscriptPath(sessionKey)) ?? "";
       if (!transcriptPath || !fs.existsSync(transcriptPath)) {
-        if (i === 0 || i % 30 === 0) {
-          debugLog("assistant_poll_waiting_transcript", {
-            sessionKey,
-            attempt: i + 1,
-            transcriptPath,
-          });
-        }
         continue;
       }
-      debugLog("assistant_poll_transcript_ready", {
-        sessionKey,
-        attempt: i + 1,
-        transcriptPath,
-      });
     }
     // hook 事件里的 messageId 和 transcript 里的真实 user message id 不一定相同。
     // 这里必须先把“当前这条用户消息”对应的 transcript user id 固定下来，
@@ -582,15 +553,6 @@ async function mirrorAssistantReplyFromTranscript(params: {
         findTranscriptUserMessageIdByContent(transcript, expectedUserContent) ||
         (await readLatestUserMessageFromTranscript(transcriptPath))?.messageId ||
         "";
-      if (transcriptUserMessageId) {
-        debugLog("assistant_poll_bound_user", {
-          sessionKey,
-          attempt: i + 1,
-          transcriptUserMessageId,
-          userMessageId,
-          expectedUserContent,
-        });
-      }
     }
     const scopedMessages =
       (transcriptUserMessageId || userMessageId) &&
@@ -600,25 +562,8 @@ async function mirrorAssistantReplyFromTranscript(params: {
     );
     const latest = pendingMessages.at(-1) || null;
     if (!latest) {
-      if (i === 0 || i % 30 === 0) {
-        debugLog("assistant_poll_no_reply_yet", {
-          sessionKey,
-          attempt: i + 1,
-          transcriptUserMessageId,
-          userMessageId,
-        });
-      }
       continue;
     }
-
-    debugLog("assistant_poll_reply_found", {
-      sessionKey,
-      attempt: i + 1,
-      transcriptUserMessageId,
-      latestMessageId: latest.messageId,
-      preview: latest.content.slice(0, 120),
-      batchSize: pendingMessages.length,
-    });
 
     for (const message of pendingMessages) {
       const response = await fetch(`${params.baseUrl}${WEBCHAT_MIRROR_PATH}`, {
@@ -638,21 +583,11 @@ async function mirrorAssistantReplyFromTranscript(params: {
 
       if (!response.ok) {
         const detail = await response.text().catch(() => "");
-        debugLog("assistant_poll_post_failed", {
-          sessionKey,
-          latestMessageId: message.messageId,
-          status: response.status,
-          detail,
-        });
         console.warn("[webchat-mirror] assistant transcript mirror failed", response.status, detail);
         return;
       }
 
       mirroredTranscriptMessageIds.add(message.messageId);
-      debugLog("assistant_poll_post_succeeded", {
-        sessionKey,
-        latestMessageId: message.messageId,
-      });
     }
 
     if (pendingMessages.some((message) => message.isTerminalAssistant)) {
@@ -660,13 +595,6 @@ async function mirrorAssistantReplyFromTranscript(params: {
     }
   }
 
-  debugLog("assistant_poll_timed_out", {
-    sessionKey,
-    transcriptPath: transcriptPath || null,
-    transcriptUserMessageId,
-    userMessageId,
-    expectedUserContent,
-  });
   console.warn("[webchat-mirror] assistant transcript mirror timed out", {
     sessionKey,
     transcriptPath: transcriptPath || null,
@@ -711,21 +639,9 @@ const webchatMirrorHandler = async (event: HookEvent) => {
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    debugLog("user_mirror_post_failed", {
-      sessionKey: event.sessionKey,
-      messageId,
-      status: response.status,
-      detail,
-    });
     console.warn("[webchat-mirror] mirror request failed", response.status, detail);
     return;
   }
-
-  debugLog("user_mirror_post_succeeded", {
-    sessionKey: event.sessionKey,
-    messageId,
-    preview: event.context?.content?.trim()?.slice(0, 120) ?? "",
-  });
 
   void mirrorAssistantReplyFromTranscript({
     event,

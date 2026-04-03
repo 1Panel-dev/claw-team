@@ -1,12 +1,12 @@
 # Claw Team Channel 插件
 
-[English](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/README.md)
+[English](./README.md)
 
 ## 快速安装手册
 
-- [人类安装](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/human-install.zh-CN.md)
-- [Agent 安装](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/agent-install.zh-CN.md)
-- [源码安装](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/source-install.zh-CN.md)
+- [人类安装](./docs/human-install.zh-CN.md)
+- [Agent 安装](./docs/agent-install.zh-CN.md)
+- [源码安装](./docs/source-install.zh-CN.md)
 
 `channel/` 是 Claw Team 对接 OpenClaw 的原生 Channel 插件实现。
 

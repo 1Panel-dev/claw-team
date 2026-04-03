@@ -30,6 +30,7 @@ class InstanceUpdate(BaseModel):
 class InstanceRead(TimestampedModel):
     # 响应里不直接暴露签名密钥和 callback token，避免无意泄漏。
     id: int
+    instance_key: str
     name: str
     channel_base_url: str
     channel_account_id: str

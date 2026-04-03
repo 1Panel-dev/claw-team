@@ -5,11 +5,10 @@
  * 也方便后面追加国际化、错误边界、埋点等全局能力。
  */
 import type { App } from "vue";
-import { createPinia } from "pinia";
-
 import { router } from "@/router";
+import { pinia } from "@/stores/pinia";
 
 export function registerProviders(app: App<Element>): void {
-    app.use(createPinia());
+    app.use(pinia);
     app.use(router);
 }

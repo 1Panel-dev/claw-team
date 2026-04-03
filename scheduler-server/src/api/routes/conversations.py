@@ -18,6 +18,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import uuid
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
@@ -76,6 +77,9 @@ def list_conversations(db: Session = Depends(db_session)) -> list[ConversationLi
         agent = db.get(AgentProfile, conversation.direct_agent_id) if conversation.direct_agent_id else None
         source_agent = db.get(AgentProfile, dialogue.source_agent_id) if dialogue else None
         target_agent = db.get(AgentProfile, dialogue.target_agent_id) if dialogue else None
+
+        if conversation.type == "direct" and instance and instance.status == "disabled":
+            continue
 
         if conversation.type == "group":
             display_title = conversation.title or (group.name if group else f"群聊 {conversation.id}")
@@ -431,18 +435,36 @@ async def _dispatch_direct(*, db: Session, conversation: Conversation, message: 
         return [dispatch.id]
     # 这里组装的是发给 claw-team channel 的统一入站 payload，
     # 它的字段形状必须和 channel 插件侧 routes.py 约定保持一致。
-    response = await channel_client.send_inbound(
-        instance=instance,
-        payload={
-            "messageId": message.id,
-            "accountId": instance.channel_account_id,
-            "chat": {"type": "direct", "chatId": str(conversation.id)},
-            "from": DEFAULT_USER.as_channel_sender(),
-            "text": message.content,
-            "directAgentId": agent.agent_key,
-            "useDedicatedDirectSession": payload.use_dedicated_direct_session,
-        },
-    )
+    try:
+        response = await channel_client.send_inbound(
+            instance=instance,
+            payload={
+                "messageId": message.id,
+                "accountId": instance.channel_account_id,
+                "chat": {"type": "direct", "chatId": str(conversation.id)},
+                "from": DEFAULT_USER.as_channel_sender(),
+                "text": message.content,
+                "directAgentId": agent.agent_key,
+                "useDedicatedDirectSession": payload.use_dedicated_direct_session,
+            },
+        )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
+    except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+        raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in {401, 403}:
+            raise HTTPException(status_code=400, detail="OpenClaw instance signature mismatch") from exc
+        if exc.response.status_code == 404:
+            raise HTTPException(
+                status_code=502,
+                detail="claw-team plugin is unavailable on the OpenClaw instance",
+            ) from exc
+        if 500 <= exc.response.status_code < 600:
+            raise HTTPException(status_code=502, detail="OpenClaw instance failed to process the request") from exc
+        raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
     dispatch.status = "accepted"
     dispatch.channel_trace_id = response.get("traceId")
     message.status = "accepted"
@@ -566,7 +588,25 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
             if mentions:
                 inbound_payload["mentions"] = [agent.agent_key]
 
-            response = await channel_client.send_inbound(instance=instance, payload=inbound_payload)
+            try:
+                response = await channel_client.send_inbound(instance=instance, payload=inbound_payload)
+            except httpx.TimeoutException as exc:
+                raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
+            except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+                raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in {401, 403}:
+                    raise HTTPException(status_code=400, detail="OpenClaw instance signature mismatch") from exc
+                if exc.response.status_code == 404:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="claw-team plugin is unavailable on the OpenClaw instance",
+                    ) from exc
+                if 500 <= exc.response.status_code < 600:
+                    raise HTTPException(status_code=502, detail="OpenClaw instance failed to process the request") from exc
+                raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
             dispatch = db.scalar(
                 select(MessageDispatch).where(
                     MessageDispatch.message_id == message.id,

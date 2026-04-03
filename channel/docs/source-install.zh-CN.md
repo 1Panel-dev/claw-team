@@ -1,6 +1,6 @@
 # Source Install 中文版
 
-[English](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/source-install.en.md)
+[English](./source-install.en.md)
 
 1. 克隆仓库。
 
@@ -42,7 +42,38 @@ openclaw plugins install -l .
 openclaw plugins enable claw-team
 ```
 
-7. 打开 OpenClaw 配置文件。
+7. 打开 Claw Team 客户端，进入 `OpenClaw` 页面，先创建实例或编辑已有实例。
+
+8. 在实例抽屉里填写并获取这些内容：
+
+- `OpenClaw URL`
+  填当前 OpenClaw 实例地址。
+- `Gateway Token`
+  填当前 OpenClaw Gateway 正在使用的 token。
+
+9. 先保存实例。
+
+实例保存成功后，Claw Team 才会为这个实例生成：
+
+- `outboundToken`
+- `inboundSigningSecret`
+
+之后，实例抽屉里才会出现可复制的 `OpenClaw JSON 配置`。
+
+10. 在实例抽屉里点击 `OpenClaw JSON 配置` 右侧的复制图标。
+
+这时客户端会自动生成实际可用的配置内容，包括：
+
+- `hooks.internal`
+- `skills`
+- `channels.claw-team.accounts.default.baseUrl`
+- `outboundToken`
+- `inboundSigningSecret`
+- `gateway.baseUrl`
+
+你只需要补 `Gateway Token`，其余值由 Claw Team 自动生成。
+
+11. 打开 OpenClaw 配置文件。
 
 常见位置：
 
@@ -50,55 +81,23 @@ openclaw plugins enable claw-team
 ~/.openclaw/openclaw.json
 ```
 
-8. 写入下面这段配置。
+12. 把刚才复制出来的 JSON 片段合并到 `openclaw.json` 里。
 
-```json
-{
-  "skills": {
-    "load": {
-      "extraDirs": [
-        "/home/node/.openclaw/extensions/claw-team/skills"
-      ]
-    },
-    "entries": {
-      "ct-chat": {
-        "enabled": true
-      }
-    }
-  },
-  "channels": {
-    "claw-team": {
-      "accounts": {
-        "default": {
-          "enabled": true,
-          "baseUrl": "填写 Claw Team 后端地址，例如：http://127.0.0.1:8080",
-          "outboundToken": "填写 Claw Team 后端实例配置里保存的回调 Token，不要自己随便写",
-          "inboundSigningSecret": "填写 Claw Team 后端实例配置里保存的 webhook 签名密钥，OpenClaw 和后端必须一致",
-          "gateway": {
-            "baseUrl": "填写当前 OpenClaw Gateway 地址",
-            "token": "填写当前 OpenClaw Gateway Token",
-            "model": "openclaw",
-            "stream": true,
-            "allowInsecureTls": true
-          },
-          "agentDirectory": {
-            "allowedAgentIds": ["main"],
-            "aliases": {}
-          }
-        }
-      }
-    }
-  }
-}
-```
+注意：
 
-9. 重启 Gateway。
+- 不要把整个文件直接覆盖掉。
+- 如果 `openclaw.json` 里已经存在 `hooks`、`skills` 或 `channels`，请务必先仔细检查，再手动合并。
+- `hooks.internal` 这一段是必须的。缺少这段时，OpenClaw Web UI 里直接发送的消息不会回流到 Claw Team。
+
+13. 重启 Gateway。
 
 ```bash
 openclaw gateway restart
 ```
 
-10. 验证安装。
+如果你运行在容器环境里，不能直接使用 `openclaw gateway restart`，请改为重启 OpenClaw 容器。
+
+14. 验证安装。
 
 ```bash
 openclaw plugins list

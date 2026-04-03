@@ -81,27 +81,53 @@
             @click="openConversation(item.id)"
           >
             <div class="sidebar__item-body">
-              <div
-                class="sidebar__item-title sidebar__item-title--recent"
-                :title="conversationDisplayName(item)"
-              >
-                {{ conversationDisplayName(item) }}
+              <div v-if="item.type === 'direct'" class="sidebar__recent-direct">
+                <div class="sidebar__row sidebar__row--recent-direct">
+                  <div
+                    class="sidebar__item-title sidebar__item-title--recent sidebar__item-title--instance"
+                    :title="item.instance_name ?? conversationDisplayName(item)"
+                  >
+                    {{ item.instance_name ?? conversationDisplayName(item) }}
+                  </div>
+                  <div class="sidebar__meta sidebar__meta--recent">
+                    <span class="sidebar__conversation-kind">
+                      {{ conversationKindLabel(item.type) }}
+                    </span>
+                    <span class="sidebar__item-time">
+                      {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="sidebar__item-title sidebar__item-title--recent sidebar__item-title--agent"
+                  :title="item.agent_display_name ?? conversationDisplayName(item)"
+                >
+                  {{ item.agent_display_name ?? conversationDisplayName(item) }}
+                </div>
+              </div>
+              <div v-else class="sidebar__row">
+                <div
+                  class="sidebar__item-title sidebar__item-title--recent"
+                  :title="conversationDisplayName(item)"
+                >
+                  {{ conversationDisplayName(item) }}
+                </div>
+                <div class="sidebar__meta sidebar__meta--recent">
+                  <span
+                    class="sidebar__conversation-kind"
+                    :class="{
+                      'sidebar__conversation-kind--group': item.type === 'group',
+                      'sidebar__conversation-kind--agent-dialogue': item.type === 'agent_dialogue',
+                    }"
+                  >
+                    {{ conversationKindLabel(item.type) }}
+                  </span>
+                  <span class="sidebar__item-time">
+                    {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
+                  </span>
+                </div>
               </div>
               <div class="sidebar__item-preview">{{ item.last_message_preview ?? t("conversation.noMessages") }}</div>
-              <div class="sidebar__meta sidebar__meta--recent">
-                <span
-                  class="sidebar__conversation-kind"
-                  :class="{
-                    'sidebar__conversation-kind--group': item.type === 'group',
-                    'sidebar__conversation-kind--agent-dialogue': item.type === 'agent_dialogue',
-                  }"
-                >
-                  {{ conversationKindLabel(item.type) }}
-                </span>
-                <span class="sidebar__item-time">
-                  {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
-                </span>
-              </div>
             </div>
           </button>
         </template>
@@ -221,8 +247,8 @@
  * 可以在这个组件内部继续扩展，而不用替换整个左侧栏。
  */
 import { Collection, ChatRound, Plus, RefreshRight, User } from "@element-plus/icons-vue";
+import type { CollapseModelValue } from "element-plus";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import ElMessage from "element-plus/es/components/message/index";
 import { useRouter } from "vue-router";
 
 import GroupCreateDrawer from "@/components/group/GroupCreateDrawer.vue";
@@ -556,8 +582,8 @@ async function refreshAgentsPane() {
     await addressBookStore.loadAddressBook();
 }
 
-function handleAgentSectionsChange(value: string[] | string) {
-    expandedAgentSections.value = Array.isArray(value) ? value : [value];
+function handleAgentSectionsChange(value: CollapseModelValue) {
+    expandedAgentSections.value = (Array.isArray(value) ? value : [value]).map((item) => String(item));
 }
 
 function expandAllAgentSections() {
@@ -766,12 +792,31 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.98rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
 .sidebar__item-title--recent {
   white-space: nowrap;
+}
+
+.sidebar__item-title--instance {
+  color: var(--el-color-primary);
+}
+
+.sidebar__item-title--agent {
+  color: var(--color-text-primary);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.sidebar__recent-direct {
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar__row--recent-direct {
+  align-items: center;
 }
 
 .sidebar__item--agent {

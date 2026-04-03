@@ -1,20 +1,86 @@
-import { execFileSync } from "node:child_process";
-
 type JsonRecord = Record<string, unknown>;
+type RuntimeSystemResult =
+    | string
+    | {
+          stdout?: string;
+          output?: string;
+          stderr?: string;
+          code?: number | null;
+          signal?: string | null;
+          killed?: boolean;
+          termination?: string | null;
+          noOutputTimedOut?: boolean;
+      };
+type RuntimeSystemLike = {
+    runCommandWithTimeout?: (argv: string[], opts?: { timeoutMs?: number }) => Promise<RuntimeSystemResult>;
+};
 
-// 容器环境里不同镜像的安装位置可能不同，这里按常见候选顺序尝试。
-export function runOpenClawCli(args: string[]): string {
-    for (const command of ["/usr/local/bin/openclaw", "openclaw"]) {
+let runtimeSystem: RuntimeSystemLike | undefined;
+
+function isRuntimeSystemProcessResult(result: RuntimeSystemResult): result is Exclude<RuntimeSystemResult, string> {
+    return typeof result === "object" && result !== null;
+}
+
+function ensureRuntimeCommandSucceeded(result: RuntimeSystemResult, command: string, args: string[]) {
+    if (!isRuntimeSystemProcessResult(result)) {
+        return;
+    }
+
+    const failed =
+        result.killed === true ||
+        (typeof result.code === "number" && result.code !== 0) ||
+        result.termination === "timeout" ||
+        (typeof result.signal === "string" && result.signal.length > 0 && result.signal !== "SIGTERM") ||
+        result.noOutputTimedOut === true;
+
+    if (!failed) {
+        return;
+    }
+
+    throw new Error(
+        JSON.stringify({
+            error: "openclaw_runtime_command_failed",
+            command,
+            args,
+            code: result.code ?? null,
+            signal: result.signal ?? null,
+            killed: result.killed ?? false,
+            termination: result.termination ?? null,
+            noOutputTimedOut: result.noOutputTimedOut ?? false,
+            stderr: result.stderr ?? "",
+            stdout: result.stdout ?? result.output ?? "",
+        }),
+    );
+}
+
+export function configureOpenClawCliRuntime(system?: RuntimeSystemLike) {
+    runtimeSystem = system;
+}
+
+function extractRuntimeOutput(result: RuntimeSystemResult): string {
+    if (typeof result === "string") {
+        return result;
+    }
+    if (typeof result?.stdout === "string") {
+        return result.stdout;
+    }
+    if (typeof result?.output === "string") {
+        return result.output;
+    }
+    return "";
+}
+
+export async function runOpenClawCli(args: string[]): Promise<string> {
+    if (runtimeSystem?.runCommandWithTimeout) {
         try {
-            return execFileSync(command, args, {
-                encoding: "utf8",
-                stdio: ["ignore", "pipe", "pipe"],
-            });
-        } catch {
-            // 当前候选不可用时继续尝试下一个命令路径。
+            const result = await runtimeSystem.runCommandWithTimeout(["openclaw", ...args], { timeoutMs: 60000 });
+            ensureRuntimeCommandSucceeded(result, "openclaw", args);
+            return extractRuntimeOutput(result);
+        } catch (error) {
+            throw error;
         }
     }
-    throw new Error("openclaw_cli_unavailable");
+    throw new Error("openclaw_runtime_helper_unavailable");
 }
 
 // CLI --json 输出前后偶尔会混进日志，这里从原始文本里尽量提取首个对象。

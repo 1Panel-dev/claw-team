@@ -43,9 +43,9 @@ def create_group(payload: GroupCreate, db: Session = Depends(db_session)) -> Cha
         instance = db.get(OpenClawInstance, member.instance_id)
         agent = db.get(AgentProfile, member.agent_id)
         if not instance:
-            raise HTTPException(status_code=404, detail=f"instance not found: {member.instance_id}")
+            raise HTTPException(status_code=404, detail="instance not found")
         if not agent:
-            raise HTTPException(status_code=404, detail=f"agent not found: {member.agent_id}")
+            raise HTTPException(status_code=404, detail="agent not found")
 
         pair = (member.instance_id, member.agent_id)
         if pair in seen_pairs:
@@ -115,9 +115,9 @@ def add_group_members(group_id: int, payload: GroupMemberAddRequest, db: Session
         instance = db.get(OpenClawInstance, item.instance_id)
         agent = db.get(AgentProfile, item.agent_id)
         if not instance:
-            raise HTTPException(status_code=404, detail=f"instance not found: {item.instance_id}")
+            raise HTTPException(status_code=404, detail="instance not found")
         if not agent:
-            raise HTTPException(status_code=404, detail=f"agent not found: {item.agent_id}")
+            raise HTTPException(status_code=404, detail="agent not found")
         exists = db.scalar(
             select(ChatGroupMember).where(
                 ChatGroupMember.group_id == group_id,
