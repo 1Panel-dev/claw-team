@@ -90,8 +90,6 @@ Notes:
 openclaw gateway restart
 ```
 
-If OpenClaw is running in a container, restart the OpenClaw container instead of using `openclaw gateway restart`.
-
 10. After the user finishes the restart, run verification.
 
 ```bash

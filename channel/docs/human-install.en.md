@@ -108,8 +108,6 @@ Notes:
 openclaw gateway restart
 ```
 
-If OpenClaw is running in a container, restart the OpenClaw container instead of using `openclaw gateway restart`, or send `USR1` to the Gateway process.
-
 10. Verify the installation.
 
 ```bash

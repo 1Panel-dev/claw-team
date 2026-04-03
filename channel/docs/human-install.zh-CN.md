@@ -105,8 +105,6 @@ openclaw plugins enable claw-team
 openclaw gateway restart
 ```
 
-如果你运行在容器环境里，不能直接使用 `openclaw gateway restart`，请改为重启 OpenClaw 容器，或者向 Gateway 进程发送 `USR1`。
-
 10. 验证安装。
 
 ```bash
