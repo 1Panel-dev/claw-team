@@ -1,7 +1,7 @@
 {
   "id": "clawswarm",
   "name": "ClawSwarm Channel",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "ClawSwarm 与 OpenClaw 的桥接通道，支持单聊、群聊、@mention",
   "kind": "channel",
   "channels": ["clawswarm"],

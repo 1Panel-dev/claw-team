@@ -1,6 +1,6 @@
 {
   "name": "@1panel-dev/clawswarm",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "description": "OpenClaw ClawSwarm channel plugin.",
   "license": "GPL-3.0 license",
