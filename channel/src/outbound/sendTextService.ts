@@ -35,7 +35,7 @@ export async function sendClawSwarmText(params: {
             {
                 rawTarget: String(params.ctx.to ?? ""),
             },
-            "ClawSwarm sendText received an invalid CT target",
+            "ClawSwarm sendText received an invalid CS target",
         );
         throw new Error("clawswarm_invalid_target_cs_id");
     }

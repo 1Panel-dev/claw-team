@@ -24,7 +24,7 @@ When using this skill:
 
 - trigger it whenever there is a real communication intent plus both sides' CS IDs are known
 - always send to a concrete CS ID
-- keep `targetCsId` and `to` consistent
+- put the target CS ID in the outer `target` / `to` field
 - include a clear `topic`
 - include a concrete `message`
 

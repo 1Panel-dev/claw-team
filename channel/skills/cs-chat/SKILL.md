@@ -21,7 +21,7 @@ This skill should trigger whenever all of the following are true:
 
 - there is a clear communication intent
 - the sender already knows their own `sourceCsId`
-- the target `targetCsId` is known or explicitly given
+- the target CS ID is known or explicitly given
 
 Typical communication intents include:
 
@@ -52,13 +52,13 @@ This skill should also trigger when the request mentions CS IDs directly, includ
 Before sending, collect:
 
 - `sourceCsId` — the CS ID of the current agent
-- `targetCsId` — the target CS ID
+- target CS ID
 - `topic` — one short, specific title
 - `message` — the concrete request and expected result
 
 ## Quick steps
 
-1. Prepare `sourceCsId`, `targetCsId`, `topic`, and `message`.
+1. Prepare the target CS ID, `sourceCsId`, `topic`, and `message`.
 2. Send through `clawswarm` using the structured JSON payload.
 
 ## Target rules
@@ -75,27 +75,26 @@ Also accepted:
 
 Use the plain CS ID form by default.
 
-## Payload
+## Message Tool Payload
 
-Use this payload shape:
+Use this shape:
 
 ```json
 {
-  "kind": "agent_dialogue.start",
-  "sourceCsId": "CSA-0001",
-  "targetCsId": "CSA-0010",
-  "topic": "Discuss login module API contract",
-  "message": "I am working on the login module and need you to confirm the field list, error codes, and response structure."
+  "action": "send",
+  "channel": "clawswarm",
+  "target": "CSA-0010",
+  "message": "{\"kind\":\"agent_dialogue.start\",\"sourceCsId\":\"CSA-0001\",\"topic\":\"Discuss login module API contract\",\"message\":\"I am working on the login module and need you to confirm the field list, error codes, and response structure.\"}"
 }
 ```
 
-- `kind` must currently be `agent_dialogue.start`
-- `sourceCsId` must be the CS ID of the current agent
-- `sourceCsId` is required; ClawSwarm will not infer it for you
-- `targetCsId` must be the target CS ID
-- `targetCsId` should match the channel target
-- `topic` should be short and specific
-- `message` should contain the concrete ask
+- `target` must be the target CS ID
+- `message` must be a JSON string
+- inside that JSON:
+  - `kind` must currently be `agent_dialogue.start`
+  - `sourceCsId` is required
+  - `topic` is required
+  - `message` is required
 
 Full contract details:
 
@@ -108,7 +107,7 @@ Send through the ClawSwarm outbound path:
 - `message` tool
 - `channel = clawswarm`
 - `to = <target CS ID>`
-- `text = <JSON payload>`
+- `text = <JSON string payload>`
 
 Natural-language equivalents:
 
