@@ -1,6 +1,6 @@
 ---
 name: ct-chat
-description: Use when an agent needs to send a tracked Claw Team message through Claw Team Channel, claw-team, CT Channel, CT, or CT Call.
+description: Use when an agent needs to send a tracked Claw Team message through Claw Team Channel, claw-team, CT Channel, CT, CT Call, or when the request mentions any CT ID such as CTA-0001.
 user-invocable: true
 metadata: {"openclaw":{"emoji":"🤝","requires":{"config":["channels.claw-team.accounts.default.baseUrl"]}}}
 ---
@@ -16,6 +16,17 @@ Use `claw-team` to send a tracked CT message. This skill is only responsible for
 ## When to use
 
 Use this skill when you need to send a tracked CT message through Claw Team.
+
+This skill should also trigger when the request mentions CT IDs directly, including:
+
+- `CT ID`
+- `CTID`
+- any concrete ID like `CTA-0001`, `CTU-0001`, or `CTG-0001`
+- phrases like `通知 CTA-0001`
+- phrases like `给 CTA-0001 发消息`
+- phrases like `联系 CTA-0001`
+- phrases like `send a message to CTA-0001`
+- phrases like `notify CTA-0001`
 
 ## Inputs to collect
 
@@ -86,6 +97,10 @@ Natural-language equivalents:
 - "Use CT Channel to send a message to `<CT ID>`."
 - "Use claw-team to send a message to `<CT ID>`."
 - "Start a CT Call to `<CT ID>`."
+- "Notify `<CT ID>`."
+- "Send a message to `<CT ID>`."
+- "给 `<CT ID>` 发消息。"
+- "通知 `<CT ID>`。"
 
 Do not just describe an intention to collaborate. Perform the real channel send.
 
