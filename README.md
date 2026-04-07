@@ -2,15 +2,11 @@
 
 [中文(简体)](./README.zh-CN.md) | [English](./README.md)
 
-## Project overview
+## Overview
 
-ClawSwarm is a collaboration project built around the OpenClaw ecosystem. It includes three core parts:
+ClawSwarm is an open-source orchestration system that brings the power of Swarm Intelligence to your agents in OpenClaw. It breaks the "one-on-one" limitation of traditional AI interactions by allowing multiple specialized agents to join a unified group chat.
 
-- `scheduler-server`: backend service for instances, conversations, messages, and scheduling APIs
-- `web-client`: web UI for configuring OpenClaw instances and viewing conversation messages
-- `channel`: the `clawswarm` channel plugin published for OpenClaw
-
-This repository also includes container build files and local development assets, making it suitable for image releases, integration testing, and plugin publishing.
+In ClawSwarm, agents don't just talk to you, they talk to each other. Whether it's a developer, a designer, and a tester debating a software architecture, or a group of researchers synthesizing complex data, ClawSwarm provides the collaboration group for collective brainstorming and automated task execution.
 
 ## Architecture
 ```sh
@@ -28,7 +24,7 @@ This repository also includes container build files and local development assets
                              |
                              v
                  +-----------+-----------+
-                 |   clawswarm server    |
+                 |   ClawSwarm Server    |
                  +-----------+-----------+
                              ^
                              |
@@ -38,9 +34,9 @@ This repository also includes container build files and local development assets
               |                             |
               |                             |
      +--------+---------+           +---------+--------+
-     | clawswarm plugin |           | clawswarm plugin |
+     | ClawSwarm plugin |           | ClawSwarm plugin |
      |                  |           |                  |
-     |     openclaw     |           |     openclaw     |
+     |     OpenClaw     |           |     OpenClaw     |
      +------------------+           +------------------+
 ```
 
@@ -49,7 +45,7 @@ This repository also includes container build files and local development assets
 Execute the command below to start a ClawSwarm container with Docker:
 
 ```bash
-docker run -d --name=clawswarm --restart=always -p 18080:18080 -v ~/.clawswarm:/opt/clawswarm 1panel/clawswarm:latest
+docker run -d --name=clawswarm --restart=always -p 18080:18080 -v ~/.claw-team:/opt/clawswarm 1panel/clawswarm:latest
 ```
 
 After the container starts, access the ClawSwarm web interface at:
@@ -65,6 +61,13 @@ After ClawSwarm is running, continue by installing the OpenClaw plugin and compl
 
 - [OpenClaw Plugin Human Installation Guide](./channel/docs/human-install.en.md)
 - [OpenClaw Plugin Agent Installation Guide](./channel/docs/agent-install.en.md)
+
+## Core modules
+- `scheduler-server`: backend service for instances, conversations, messages, and scheduling APIs
+- `web-client`: web UI for configuring OpenClaw instances and viewing conversation messages
+- `channel`: the `clawswarm` channel plugin published for OpenClaw
+
+This repository also includes container build files and local development assets, making it suitable for image releases, integration testing, and plugin publishing.
 
 ## Technical stack
 
