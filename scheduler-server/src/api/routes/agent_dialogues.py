@@ -143,6 +143,7 @@ async def create_agent_dialogue(payload: AgentDialogueCreate, db: Session = Depe
         conversation_id=conversation.id,
         sender_type="user",
         sender_label=DEFAULT_USER.sender_label,
+        sender_ct_id=DEFAULT_USER.ct_id,
         content=payload.topic.strip(),
         status="completed",
     )
@@ -201,6 +202,7 @@ async def add_agent_dialogue_message(
         conversation_id=dialogue.conversation_id,
         sender_type="user",
         sender_label=DEFAULT_USER.sender_label,
+        sender_ct_id=DEFAULT_USER.ct_id,
         content=payload.content.strip(),
         status="completed",
     )

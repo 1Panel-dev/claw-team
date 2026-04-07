@@ -82,6 +82,12 @@ def ensure_runtime_schema() -> None:
             statements.append("ALTER TABLE tasks ADD COLUMN parent_task_id VARCHAR(64)")
             statements.append("CREATE INDEX IF NOT EXISTS ix_tasks_parent_task_id ON tasks (parent_task_id)")
 
+    if "messages" in table_names:
+        message_columns = {column["name"] for column in inspector.get_columns("messages")}
+        if "sender_ct_id" not in message_columns:
+            statements.append("ALTER TABLE messages ADD COLUMN sender_ct_id VARCHAR(32)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_messages_sender_ct_id ON messages (sender_ct_id)")
+
     if "agent_profiles" in table_names:
         agent_columns = {column["name"] for column in inspector.get_columns("agent_profiles")}
         if "created_via_claw_team" not in agent_columns:

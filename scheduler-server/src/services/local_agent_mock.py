@@ -65,6 +65,7 @@ def simulate_local_agent_reply(
                 conversation_id=conversation_id,
                 sender_type="agent",
                 sender_label=agent.display_name,
+                sender_ct_id=agent.ct_id,
                 content=_build_mock_reply(agent.display_name, message.content),
                 status="completed",
             )

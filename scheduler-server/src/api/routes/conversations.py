@@ -256,6 +256,7 @@ def list_conversation_messages(
         if include_dispatches
         else []
     )
+    sender_ct_id_map = _build_sender_ct_id_map(db=db, conversation=conversation, dialogue=dialogue)
     return ConversationMessagesResponse(
         conversation=ConversationRead(
             id=conversation.id,
@@ -268,13 +269,57 @@ def list_conversation_messages(
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
         ),
-        messages=[build_message_read(item) for item in messages],
+        messages=[
+            build_message_read(
+                item,
+                sender_ct_id=item.sender_ct_id or sender_ct_id_map.get((item.sender_label or "").strip()),
+            )
+            for item in messages
+        ],
         dispatches=[validate_orm(DispatchRead, item) for item in dispatches],
         next_message_cursor=messages[-1].id if messages else message_after,
         next_dispatch_cursor=dispatches[-1].id if dispatches else dispatch_after,
         has_more_messages=has_more_messages,
         oldest_loaded_message_id=messages[0].id if messages else before_message_id,
     )
+
+
+def _build_sender_ct_id_map(
+    *,
+    db: Session,
+    conversation: Conversation,
+    dialogue: AgentDialogue | None,
+) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+
+    if conversation.type == "agent_dialogue" and dialogue:
+        source_agent = db.get(AgentProfile, dialogue.source_agent_id)
+        target_agent = db.get(AgentProfile, dialogue.target_agent_id)
+        if source_agent and source_agent.ct_id and source_agent.display_name.strip():
+            mapping[source_agent.display_name.strip()] = source_agent.ct_id
+        if target_agent and target_agent.ct_id and target_agent.display_name.strip():
+            mapping[target_agent.display_name.strip()] = target_agent.ct_id
+        return mapping
+
+    if conversation.type == "group" and conversation.group_id:
+        members = list(
+            db.scalars(select(ChatGroupMember).where(ChatGroupMember.group_id == conversation.group_id))
+        )
+        for member in members:
+            agent = db.get(AgentProfile, member.agent_id)
+            if not agent or not agent.ct_id:
+                continue
+            label = (agent.display_name or "").strip()
+            if label and label not in mapping:
+                mapping[label] = agent.ct_id
+        return mapping
+
+    if conversation.type == "direct" and conversation.direct_agent_id:
+        agent = db.get(AgentProfile, conversation.direct_agent_id)
+        if agent and agent.ct_id and agent.display_name.strip():
+            mapping[agent.display_name.strip()] = agent.ct_id
+
+    return mapping
 
 
 def _load_conversation_messages(
@@ -372,6 +417,7 @@ async def send_message(
         conversation_id=conversation_id,
         sender_type="user",
         sender_label=DEFAULT_USER.sender_label,
+        sender_ct_id=DEFAULT_USER.ct_id,
         content=payload.content,
         status="pending",
     )

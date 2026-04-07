@@ -96,6 +96,7 @@ class MessageRead(TimestampedModel):
     conversation_id: int
     sender_type: str
     sender_label: str
+    sender_ct_id: str | None = None
     # 这里先用消息 id 前缀推导来源，避免为了展示来源再做一轮数据库迁移。
     # 当前只有 Web UI 镜像消息需要来源标记；普通消息保持 None 即可。
     source: str | None = None
@@ -178,7 +179,7 @@ def build_message_parts(content: str) -> list[MessagePartRead]:
     return parts
 
 
-def build_message_read(message) -> MessageRead:
+def build_message_read(message, *, sender_ct_id: str | None = None) -> MessageRead:
     return MessageRead(
         id=message.id,
         conversation_id=message.conversation_id,
@@ -187,6 +188,7 @@ def build_message_read(message) -> MessageRead:
             sender_type=message.sender_type,
             sender_label=message.sender_label,
         ),
+        sender_ct_id=sender_ct_id,
         source=_detect_message_source(message.id),
         content=message.content,
         status=message.status,

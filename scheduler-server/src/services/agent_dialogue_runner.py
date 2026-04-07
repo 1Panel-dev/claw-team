@@ -294,6 +294,7 @@ def _maybe_add_soft_limit_warning(*, db: Session, dialogue: AgentDialogue, conve
         conversation_id=conversation.id,
         sender_type="system",
         sender_label="System",
+        sender_ct_id=None,
         content=AGENT_DIALOGUE_WARNING_TEXT,
         status="completed",
     )

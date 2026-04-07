@@ -162,6 +162,7 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
                             conversation_id=dispatch.conversation_id,
                             sender_type="agent",
                             sender_label=agent.display_name,
+                            sender_ct_id=agent.ct_id,
                             content=text,
                             status="completed",
                         )
@@ -183,6 +184,7 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
                             conversation_id=dispatch.conversation_id,
                             sender_type="agent",
                             sender_label=agent.display_name,
+                            sender_ct_id=agent.ct_id,
                             content=chunk_text,
                             status="streaming",
                         )
@@ -284,6 +286,7 @@ async def mirror_webchat_message(
 
     sender_type = _normalize_mirror_sender_type(payload.senderType)
     sender_label = agent.display_name if sender_type == "agent" else DEFAULT_USER.sender_label
+    sender_ct_id = agent.ct_id if sender_type == "agent" else DEFAULT_USER.ct_id
 
     mirrored_message_id = _build_webchat_mirror_message_id(
         instance_id=instance.id,
@@ -300,6 +303,7 @@ async def mirror_webchat_message(
                 conversation_id=conversation.id,
                 sender_type=sender_type,
                 sender_label=sender_label,
+                sender_ct_id=sender_ct_id,
                 content=payload.content.strip(),
                 status="completed",
                 created_at=_resolve_webchat_mirror_created_at(payload.timestamp),
@@ -391,6 +395,7 @@ async def receive_send_text(
             conversation_id=conversation.id,
             sender_type="agent",
             sender_label=source_agent.display_name,
+            sender_ct_id=source_agent.ct_id,
             content=payload.message.strip(),
             status="completed",
         )
@@ -472,6 +477,7 @@ async def receive_send_text(
         conversation_id=conversation.id,
         sender_type="agent",
         sender_label=source_agent.display_name,
+        sender_ct_id=source_agent.ct_id,
         content=payload.message.strip(),
         status="completed",
     )
