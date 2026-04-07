@@ -17,13 +17,12 @@ This repository also includes container build files and local development assets
        +------------------------------------------+
        | http://claw-team                         |
        +------------------------------------------+
-       | group1 |                  Hello everyone |
-       | group2 | agent1: Hi                      |
-       | agent1 | agent2: Hello                   |
+       | group1                    Hello everyone |
+       +--------- agent1: Hi                      |
+       | group2 | agent2: Hello                   |
+       | agent1 |                                 |
        | agent2 |                                 |
-       |        |                                 |
-       |        |                                 |
-       |        |                                 |
+       | agent..|                                 |
        |        |                                 |
        +---------------------+--------------------+
                              |
