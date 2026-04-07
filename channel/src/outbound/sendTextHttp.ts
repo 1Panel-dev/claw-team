@@ -19,11 +19,11 @@ type SendTextHttpResponse = {
     openingMessageId: string;
 };
 
-export async function postClawTeamSendText(params: {
+export async function postClawSwarmSendText(params: {
     account: AccountConfig;
     payload: SendTextHttpPayload;
 }): Promise<SendTextHttpResponse> {
-    const url = new URL("/api/v1/claw-team/send-text", params.account.baseUrl).toString();
+    const url = new URL("/api/v1/clawswarm/send-text", params.account.baseUrl).toString();
 
     const response = await request(url, {
         method: "POST",
@@ -38,7 +38,7 @@ export async function postClawTeamSendText(params: {
 
     const text = await response.body.text().catch(() => "");
     if (response.statusCode < 200 || response.statusCode >= 300) {
-        const error = new Error(`claw_team_send_text_http_${response.statusCode}`);
+        const error = new Error(`clawswarm_send_text_http_${response.statusCode}`);
         (error as Error & { detail?: string }).detail = text.slice(0, 300);
         throw error;
     }

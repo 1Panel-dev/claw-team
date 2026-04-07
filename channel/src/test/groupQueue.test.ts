@@ -6,7 +6,7 @@ import { createGroupDispatchQueue } from "../dispatcher/groupQueue.js";
 describe("createGroupDispatchQueue", () => {
     it("serializes tasks with the same account, agent, and session key", async () => {
         const account = AccountConfigSchema.parse({
-            baseUrl: "https://claw-team.example.com",
+            baseUrl: "https://clawswarm.example.com",
             outboundToken: "outbound-token",
             inboundSigningSecret: "1234567890123456",
             limits: {

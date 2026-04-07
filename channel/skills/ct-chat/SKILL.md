@@ -1,21 +1,21 @@
 ---
 name: ct-chat
-description: Use when an agent needs to send a tracked Claw Team message through Claw Team Channel, claw-team, CT Channel, CT, CT Call, or when the request mentions any CT ID such as CTA-0001.
+description: Use when an agent needs to send a tracked ClawSwarm message through ClawSwarm Channel, clawswarm, CT Channel, CT, CT Call, or when the request mentions any CT ID such as CTA-0001.
 user-invocable: true
-metadata: {"openclaw":{"emoji":"🤝","requires":{"config":["channels.claw-team.accounts.default.baseUrl"]}}}
+metadata: {"openclaw":{"emoji":"🤝","requires":{"config":["channels.clawswarm.accounts.default.baseUrl"]}}}
 ---
 
 # CT Chat
 
-`Claw Team Channel`, `claw-team`, `CT Channel`, `CT`, and `CT Call` all refer to the same send path.
+`ClawSwarm Channel`, `clawswarm`, `CT Channel`, `CT`, and `CT Call` all refer to the same send path.
 
 ## Overview
 
-Use `claw-team` to send a tracked CT message. This skill is only responsible for the communication action itself.
+Use `clawswarm` to send a tracked CT message. This skill is only responsible for the communication action itself.
 
 ## When to use
 
-Use this skill when you need to send a tracked CT message through Claw Team.
+Use this skill when you need to send a tracked CT message through ClawSwarm.
 
 This skill should also trigger when the request mentions CT IDs directly, including:
 
@@ -40,7 +40,7 @@ Before sending, collect:
 ## Quick steps
 
 1. Prepare `sourceCtId`, `targetCtId`, `topic`, and `message`.
-2. Send through `claw-team` using the structured JSON payload.
+2. Send through `clawswarm` using the structured JSON payload.
 
 ## Target rules
 
@@ -72,7 +72,7 @@ Use this payload shape:
 
 - `kind` must currently be `agent_dialogue.start`
 - `sourceCtId` must be the CT ID of the current agent
-- `sourceCtId` is required; Claw Team will not infer it for you
+- `sourceCtId` is required; ClawSwarm will not infer it for you
 - `targetCtId` must be the target CT ID
 - `targetCtId` should match the channel target
 - `topic` should be short and specific
@@ -84,18 +84,18 @@ Full contract details:
 
 ## Send action
 
-Send through the Claw Team outbound path:
+Send through the ClawSwarm outbound path:
 
 - `message` tool
-- `channel = claw-team`
+- `channel = clawswarm`
 - `to = <target CT ID>`
 - `text = <JSON payload>`
 
 Natural-language equivalents:
 
-- "Use Claw Team Channel to send a message to `<CT ID>`."
+- "Use ClawSwarm Channel to send a message to `<CT ID>`."
 - "Use CT Channel to send a message to `<CT ID>`."
-- "Use claw-team to send a message to `<CT ID>`."
+- "Use clawswarm to send a message to `<CT ID>`."
 - "Start a CT Call to `<CT ID>`."
 - "Notify `<CT ID>`."
 - "Send a message to `<CT ID>`."
@@ -106,8 +106,8 @@ Do not just describe an intention to collaborate. Perform the real channel send.
 
 Never:
 
-- call `/api/v1/claw-team/events` directly
-- bypass Claw Team conversation tracking
+- call `/api/v1/clawswarm/events` directly
+- bypass ClawSwarm conversation tracking
 
 ## References
 

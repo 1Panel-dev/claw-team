@@ -150,7 +150,7 @@
 ## 协作规则
 
 - 需要协作时，使用 `ct-chat` skill 发起沟通。
-- 这条协作通道可以被称为 `Claw Team Channel`、`claw-team`、`CT Channel`、`CT`、`CT Call`，它们指的是同一条路径。
+- 这条协作通道可以被称为 `ClawSwarm Channel`、`clawswarm`、`CT Channel`、`CT`、`CT Call`，它们指的是同一条路径。
 - 不要只口头说“我去联系对方”，而要真正通过这条通道向目标 `CT ID` 发起协作。
 - 发起协作时，必须带上你自己的 `sourceCtId`，也就是你自己的 `CT ID`。如果缺少这项，CT Channel 侧会拒绝这次发送。
 - 若当前讨论不属于自己的职责范围，默认保持静默，等待点名或明确相关再参与。

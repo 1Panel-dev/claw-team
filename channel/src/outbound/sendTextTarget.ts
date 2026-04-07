@@ -44,17 +44,17 @@ export function normalizeTargetCtId(to: string): string {
         : withoutAt;
     const value = normalized.trim().toUpperCase();
     if (!TARGET_CT_ID_PATTERN.test(value)) {
-        throw new Error("claw_team_invalid_target_ct_id");
+        throw new Error("clawswarm_invalid_target_ct_id");
     }
     return value;
 }
 
-export function resolveClawTeamTarget(to?: string): TargetResolution {
+export function resolveClawSwarmTarget(to?: string): TargetResolution {
     const raw = String(to ?? "").trim();
     if (!raw) {
         return {
             ok: false,
-            error: new Error("Delivering to Claw Team requires a target CT ID like CTA-0009 or CTU-0001."),
+            error: new Error("Delivering to ClawSwarm requires a target CT ID like CTA-0009 or CTU-0001."),
         };
     }
     try {
@@ -72,7 +72,7 @@ export function resolveClawTeamTarget(to?: string): TargetResolution {
     }
 }
 
-export function looksLikeClawTeamCtId(raw: string, normalized?: string): boolean {
+export function looksLikeClawSwarmCtId(raw: string, normalized?: string): boolean {
     const candidate = String(normalized ?? raw ?? "").trim();
     try {
         normalizeTargetCtId(candidate);
@@ -82,7 +82,7 @@ export function looksLikeClawTeamCtId(raw: string, normalized?: string): boolean
     }
 }
 
-export async function resolveClawTeamMessagingTarget(params: {
+export async function resolveClawSwarmMessagingTarget(params: {
     input: string;
 }): Promise<MessagingTargetResolution | null> {
     try {

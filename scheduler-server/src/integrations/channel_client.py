@@ -66,14 +66,14 @@ class ChannelClient:
         1. 这里的签名规则要和 channel 插件侧完全一致。
         2. 当前远程 OpenClaw 使用的是自签证书 HTTPS，所以 verify 是否开启由配置决定。
         """
-        path = "/claw-team/v1/inbound"
+        path = "/clawswarm/v1/inbound"
         return await self._signed_request(instance=instance, method="POST", path=path, payload=payload)
 
     async def create_agent(self, *, instance: OpenClawInstance, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._signed_request(
             instance=instance,
             method="POST",
-            path="/claw-team/v1/admin/agents",
+            path="/clawswarm/v1/admin/agents",
             payload=payload,
             timeout=60.0,
         )
@@ -83,7 +83,7 @@ class ChannelClient:
         return await self._signed_request(
             instance=instance,
             method="GET",
-            path=f"/claw-team/v1/admin/agents/{encoded_agent_key}/profile",
+            path=f"/clawswarm/v1/admin/agents/{encoded_agent_key}/profile",
             payload=None,
             timeout=30.0,
         )
@@ -93,7 +93,7 @@ class ChannelClient:
         return await self._signed_request(
             instance=instance,
             method="PUT",
-            path=f"/claw-team/v1/admin/agents/{encoded_agent_key}/profile",
+            path=f"/clawswarm/v1/admin/agents/{encoded_agent_key}/profile",
             payload=payload,
             timeout=60.0,
         )

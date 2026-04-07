@@ -56,7 +56,6 @@ declare module 'vue' {
     MessageAttachmentCard: typeof import('./src/components/conversation/MessageAttachmentCard.vue')['default']
     MessageComposer: typeof import('./src/components/conversation/MessageComposer.vue')['default']
     MessageList: typeof import('./src/components/conversation/MessageList.vue')['default']
-    MessageListBackup: typeof import('./src/components/conversation/MessageList-backup.vue')['default']
     MessageMarkdown: typeof import('./src/components/conversation/MessageMarkdown.vue')['default']
     MessageToolCard: typeof import('./src/components/conversation/MessageToolCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

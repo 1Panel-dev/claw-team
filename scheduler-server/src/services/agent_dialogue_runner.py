@@ -28,7 +28,7 @@ from src.services.default_user import get_default_user_identity
 IN_FLIGHT_DISPATCH_STATUSES = ("pending", "accepted", "streaming")
 AGENT_DIALOGUE_WARNING_TEXT = "短时间内对话次数较多，请聚焦当前目标，避免无效往返。"
 AGENT_DIALOGUE_CHANNEL_PREFIX = "agent-dialogue"
-AGENT_DIALOGUE_CONTEXT_HEADER = "[Claw Team Agent Dialogue]"
+AGENT_DIALOGUE_CONTEXT_HEADER = "[ClawSwarm Agent Dialogue]"
 DEFAULT_USER = get_default_user_identity()
 
 
@@ -227,7 +227,7 @@ def _build_agent_dialogue_context_text(
 
     这里的目标不是做复杂协议，而是解决两个实际问题：
     1. Agent 必须知道自己当前是在和谁对话，而不是把收到的内容误判成新的普通用户请求。
-    2. Agent 必须知道这条消息属于哪条持续中的 Claw Team 对话，避免“继续接龙”这类指令丢上下文。
+    2. Agent 必须知道这条消息属于哪条持续中的 ClawSwarm 对话，避免“继续接龙”这类指令丢上下文。
     """
     source_agent = db.get(AgentProfile, dialogue.source_agent_id)
     target_agent = db.get(AgentProfile, dialogue.target_agent_id)
@@ -260,7 +260,7 @@ def _build_agent_dialogue_context_text(
                 if sender_label
                 else "Last speaker: Unknown"
             ),
-            "Instruction: Continue the ongoing Claw Team agent dialogue with your current partner. Reply to the partner directly and stay focused on the topic.",
+            "Instruction: Continue the ongoing ClawSwarm agent dialogue with your current partner. Reply to the partner directly and stay focused on the topic.",
             "",
             message_intro,
             message.content,

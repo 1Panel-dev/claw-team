@@ -6,7 +6,7 @@ import { dedupeKeyForMessageAgent } from "../store/idempotency.js";
 import { buildSessionKey } from "../router/sessionKey.js";
 import type { InboundMessage } from "../router/resolveRoute.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
-import type { ClawTeamCallbackClient } from "../callback/client.js";
+import type { ClawSwarmCallbackClient } from "../callback/client.js";
 import { buildCallbackMessageParts } from "../callback/parts.js";
 import { markLocalOriginSession } from "../openclaw/mirrorOriginRegistry.js";
 import { emitDirectEvent } from "./directEvent.js";
@@ -18,7 +18,7 @@ export async function dispatchDirect(params: {
 
     idempotency: IdempotencyStore;
     messageState: MessageStateStore;
-    clawTeam: ClawTeamCallbackClient;
+    clawSwarm: ClawSwarmCallbackClient;
     openclaw: OpenClawRuntimeAdapter;
 
     inbound: InboundMessage;
@@ -33,7 +33,7 @@ export async function dispatchDirect(params: {
         logger,
         idempotency,
         messageState,
-        clawTeam,
+        clawSwarm,
         openclaw,
         inbound,
         agentId,
@@ -87,12 +87,12 @@ export async function dispatchDirect(params: {
         routeKind,
     });
 
-    if (channelId === "claw-team" && routeKind === "DIRECT") {
+    if (channelId === "clawswarm" && routeKind === "DIRECT") {
         markLocalOriginSession(sessionKey);
     }
 
     await emitDirectEvent({
-        clawTeam,
+        clawSwarm,
         baseLog,
         accountConfig,
         eventType: "run.accepted",
@@ -129,7 +129,7 @@ export async function dispatchDirect(params: {
             if (chunk.text && !isAggregatedFinalDuplicate) {
                 buf += chunk.text;
                 await emitDirectEvent({
-                    clawTeam,
+                    clawSwarm,
                     baseLog,
                     accountConfig,
                     eventType: "reply.chunk",
@@ -143,7 +143,7 @@ export async function dispatchDirect(params: {
         }
 
         await emitDirectEvent({
-            clawTeam,
+            clawSwarm,
             baseLog,
             accountConfig,
             eventType: "reply.final",
@@ -168,7 +168,7 @@ export async function dispatchDirect(params: {
     } catch (err) {
         baseLog.error({ err: String(err) }, "agent run failed");
         await emitDirectEvent({
-            clawTeam,
+            clawSwarm,
             baseLog,
             accountConfig,
             eventType: "run.error",

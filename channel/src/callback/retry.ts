@@ -5,7 +5,7 @@
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
 import type { Logger } from "../observability/logger.js";
-import type { ClawTeamCallbackClient, ClawTeamEvent } from "./client.js";
+import type { ClawSwarmCallbackClient, ClawSwarmEvent } from "./client.js";
 
 // 退避策略都放在这里，便于后续替换成更复杂的队列系统。
 export type RetryPolicy = {
@@ -17,8 +17,8 @@ export type RetryPolicy = {
 };
 
 export async function sendEventWithRetry(params: {
-    client: ClawTeamCallbackClient;
-    event: ClawTeamEvent;
+    client: ClawSwarmCallbackClient;
+    event: ClawSwarmEvent;
     policy: RetryPolicy;
     logger: Logger;
 }): Promise<void> {

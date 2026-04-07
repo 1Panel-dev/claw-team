@@ -3,7 +3,7 @@
  *
  * 当前后端还是返回单一 `content: string`，
  * 所以前端先统一映射成 markdown 文本片段。
- * 后面如果 Claw Team 调度中心把消息升级成多段结构：
+ * 后面如果 ClawSwarm 调度中心把消息升级成多段结构：
  * - markdown
  * - plain text
  * - attachment

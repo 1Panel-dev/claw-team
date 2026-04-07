@@ -254,7 +254,7 @@ function statusTagType(status: string) {
 }
 
 function canEditAgent(agent: AgentReadApi) {
-  return agent.created_via_claw_team || agent.agent_key.trim().toLowerCase() !== "main";
+  return agent.created_via_clawswarm || agent.agent_key.trim().toLowerCase() !== "main";
 }
 
 async function syncAgents(instanceId: number, instanceName: string) {

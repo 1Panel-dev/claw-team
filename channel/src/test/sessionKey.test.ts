@@ -17,7 +17,7 @@ describe("buildSessionKey", () => {
         ).toBe("agent:pm:pm");
     });
 
-    it("builds dedicated direct session keys in claw-team form", () => {
+    it("builds dedicated direct session keys in clawswarm form", () => {
         expect(
             buildSessionKey({
                 agentId: "pm",
@@ -26,7 +26,7 @@ describe("buildSessionKey", () => {
                 threadId: "conv-1",
                 useDedicatedDirectSession: true,
             }),
-        ).toBe("claw-team:direct:conv-1:agent:pm");
+        ).toBe("clawswarm:direct:conv-1:agent:pm");
     });
 
     it("builds mention session keys in documented form", () => {
@@ -38,7 +38,7 @@ describe("buildSessionKey", () => {
                 threadId: "conv-1",
                 routeKind: "GROUP_MENTION",
             }),
-        ).toBe("agent:qa:claw-team:group:proj-alpha:route:mention:conv:conv-1");
+        ).toBe("agent:qa:clawswarm:group:proj-alpha:route:mention:conv:conv-1");
     });
 
     it("builds broadcast session keys in agent-scoped group form", () => {
@@ -50,6 +50,6 @@ describe("buildSessionKey", () => {
                 threadId: "conv-2",
                 routeKind: "GROUP_BROADCAST",
             }),
-        ).toBe("agent:pm:claw-team:group:proj-alpha:route:broadcast:conv:conv-2");
+        ).toBe("agent:pm:clawswarm:group:proj-alpha:route:broadcast:conv:conv-2");
     });
 });

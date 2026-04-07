@@ -38,7 +38,7 @@ export const en = {
     conversation: {
         search: "Search",
         createGroup: "Create group",
-        drawerGroupHint: "Groups are maintained by the Claw Team scheduler. Phase 1 supports creating groups and adding members later.",
+        drawerGroupHint: "Groups are maintained by the ClawSwarm scheduler. Phase 1 supports creating groups and adding members later.",
         switchView: "Switch view",
         loadingConversations: "Loading conversations...",
         noMatchingConversations: "No matching conversations.",

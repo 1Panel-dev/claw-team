@@ -1,7 +1,7 @@
 """
 这个文件负责 OpenClaw 实例管理。
 
-第一阶段里，一个实例代表一套可调用的 claw-team channel：
+第一阶段里，一个实例代表一套可调用的 ClawSwarm channel：
 1. 保存 channel 地址。
 2. 保存 accountId。
 3. 保存调度中心到 channel 的签名密钥。
@@ -42,9 +42,9 @@ CHANNEL_FETCH_TIMEOUT = 60.0
 def fetch_channel_agents(base_url: str) -> list[dict]:
     try:
         with httpx.Client(timeout=CHANNEL_FETCH_TIMEOUT, verify=False) as client:
-            health = client.get(f"{base_url}/claw-team/v1/health")
+            health = client.get(f"{base_url}/clawswarm/v1/health")
             health.raise_for_status()
-            agents_response = client.get(f"{base_url}/claw-team/v1/agents")
+            agents_response = client.get(f"{base_url}/clawswarm/v1/agents")
             agents_response.raise_for_status()
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
@@ -54,7 +54,7 @@ def fetch_channel_agents(base_url: str) -> list[dict]:
         if exc.response.status_code == 404:
             raise HTTPException(
                 status_code=502,
-                detail="claw-team plugin is unavailable on the OpenClaw instance",
+                detail="clawswarm plugin is unavailable on the OpenClaw instance",
             ) from exc
         raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
 
@@ -70,7 +70,7 @@ def fetch_channel_agents(base_url: str) -> list[dict]:
 def probe_channel_health(base_url: str) -> bool:
     try:
         with httpx.Client(timeout=HEALTH_CHECK_TIMEOUT, verify=False) as client:
-            response = client.get(f"{base_url.rstrip('/')}/claw-team/v1/health")
+            response = client.get(f"{base_url.rstrip('/')}/clawswarm/v1/health")
             response.raise_for_status()
             return True
     except httpx.HTTPError:
@@ -172,7 +172,7 @@ def create_instance(payload: InstanceCreate, db: Session = Depends(db_session)) 
 @router.post("/connect", response_model=OpenClawConnectResponse)
 def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_session)) -> OpenClawConnectResponse:
     """
-    快速接入一套已经安装好 claw-team channel 的 OpenClaw。
+    快速接入一套已经安装好 ClawSwarm channel 的 OpenClaw。
 
     这里做 4 件事：
     1. 创建或更新实例记录，并生成一组新的配对凭据。

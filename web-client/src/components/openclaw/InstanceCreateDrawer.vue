@@ -211,10 +211,10 @@ function buildOpenClawConfig(maskSecrets: boolean) {
     const fullConfig = JSON.stringify({
         plugins: {
             allow: [
-                "claw-team",
+                "clawswarm",
             ],
             entries: {
-                "claw-team": {
+                "clawswarm": {
                     enabled: true,
                     config: {},
                 },
@@ -223,7 +223,7 @@ function buildOpenClawConfig(maskSecrets: boolean) {
         skills: {
             load: {
                 extraDirs: [
-                    "/home/node/.openclaw/extensions/claw-team/skills",
+                    "/home/node/.openclaw/extensions/clawswarm/skills",
                 ],
             },
             entries: {
@@ -233,7 +233,7 @@ function buildOpenClawConfig(maskSecrets: boolean) {
             },
         },
         channels: {
-            "claw-team": {
+            "clawswarm": {
                 accounts: {
                     default: {
                         enabled: true,

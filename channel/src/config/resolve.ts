@@ -66,7 +66,7 @@ const AccountRuntimeBootstrapSchema = z.object({
 export function resolveAccountBootstrapConfig(cfg: any, accountId?: string): {
     idempotency: AccountConfig["idempotency"];
 } {
-    const sec = cfg?.channels?.["claw-team"] ?? {};
+    const sec = cfg?.channels?.["clawswarm"] ?? {};
     const raw = sec?.accounts?.[accountId ?? "default"] ?? {};
     return AccountRuntimeBootstrapSchema.parse(normalizeAccountConfigInput(raw));
 }

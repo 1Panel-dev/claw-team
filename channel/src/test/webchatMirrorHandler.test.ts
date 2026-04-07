@@ -17,7 +17,7 @@ function createApiMock(accountOverride?: Record<string, unknown>) {
         api: {
             config: {
                 channels: {
-                    "claw-team": {
+                    "clawswarm": {
                         accounts: {
                             default: {
                                 baseUrl: "https://mirror.example.com",
@@ -79,7 +79,7 @@ describe("findAssistantReplyForTranscriptUser", () => {
         });
     });
 
-    it("returns the final assistant reply after internal claw-team dialogue user messages", () => {
+    it("returns the final assistant reply after internal clawswarm dialogue user messages", () => {
         const transcript = [
             JSON.stringify({
                 id: "user-1",
@@ -92,7 +92,7 @@ describe("findAssistantReplyForTranscriptUser", () => {
                 id: "internal-user-1",
                 message: {
                     role: "user",
-                    content: [{ type: "text", text: "[Claw Team Agent Dialogue]\nPartner: TestBot2" }],
+                    content: [{ type: "text", text: "[ClawSwarm Agent Dialogue]\nPartner: TestBot2" }],
                 },
             }),
             JSON.stringify({
@@ -126,7 +126,7 @@ describe("findAssistantReplyForTranscriptUser", () => {
                 id: "user-1",
                 message: {
                     role: "user",
-                    content: [{ type: "text", text: "请通过 claw-team channel 联系 TestBot2" }],
+                    content: [{ type: "text", text: "请通过 clawswarm channel 联系 TestBot2" }],
                 },
             }),
             JSON.stringify({
@@ -136,7 +136,7 @@ describe("findAssistantReplyForTranscriptUser", () => {
                     role: "assistant",
                     stopReason: "toolUse",
                     content: [
-                        { type: "text", text: "我先尝试通过 claw-team 发送消息。" },
+                        { type: "text", text: "我先尝试通过 clawswarm 发送消息。" },
                         { type: "toolCall", name: "message", arguments: { target: "default" } },
                     ],
                 },
@@ -148,7 +148,7 @@ describe("findAssistantReplyForTranscriptUser", () => {
                     role: "toolResult",
                     toolName: "message",
                     details: { status: "error" },
-                    content: [{ type: "text", text: "Unknown target \"default\" for Claw Team." }],
+                    content: [{ type: "text", text: "Unknown target \"default\" for ClawSwarm." }],
                 },
             }),
             JSON.stringify({
@@ -157,7 +157,7 @@ describe("findAssistantReplyForTranscriptUser", () => {
                 message: {
                     role: "assistant",
                     stopReason: "stop",
-                    content: [{ type: "text", text: "当前无法通过 claw-team channel 发送，请先完成配对。" }],
+                    content: [{ type: "text", text: "当前无法通过 clawswarm channel 发送，请先完成配对。" }],
                 },
             }),
         ].join("\n");
@@ -165,17 +165,17 @@ describe("findAssistantReplyForTranscriptUser", () => {
         expect(findMirrorableMessagesForTranscriptUser(transcript, "user-1")).toEqual([
             {
                 messageId: "assistant-tool-call",
-                content: "我先尝试通过 claw-team 发送消息。\n\n[[tool:message|running|{\n  \"target\": \"default\"\n}]]",
+                content: "我先尝试通过 clawswarm 发送消息。\n\n[[tool:message|running|{\n  \"target\": \"default\"\n}]]",
                 isTerminalAssistant: false,
             },
             {
                 messageId: "tool-result-1",
-                content: '[[tool:message|failed|Unknown target "default" for Claw Team.\n\n{\n  "status": "error"\n}]]',
+                content: '[[tool:message|failed|Unknown target "default" for ClawSwarm.\n\n{\n  "status": "error"\n}]]',
                 isTerminalAssistant: false,
             },
             {
                 messageId: "assistant-final",
-                content: "当前无法通过 claw-team channel 发送，请先完成配对。",
+                content: "当前无法通过 clawswarm channel 发送，请先完成配对。",
                 isTerminalAssistant: true,
             },
         ]);
@@ -272,7 +272,7 @@ describe("registerWebchatTranscriptMirror", () => {
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock).toHaveBeenLastCalledWith(
-            "https://mirror.example.com/api/v1/claw-team/webchat-mirror",
+            "https://mirror.example.com/api/v1/clawswarm/webchat-mirror",
             expect.objectContaining({
                 method: "POST",
                 body: expect.any(String),
@@ -436,7 +436,7 @@ describe("registerWebchatTranscriptMirror", () => {
         expect(payloads.every((payload) => typeof payload.timestamp === "number")).toBe(true);
     });
 
-    it("keeps tool-process mirror events for locally-originated claw-team direct turns but suppresses the final llm output", async () => {
+    it("keeps tool-process mirror events for locally-originated clawswarm direct turns but suppresses the final llm output", async () => {
         const { api, handlers } = createApiMock();
         registerWebchatTranscriptMirror(api as any, logger);
 
@@ -470,7 +470,7 @@ describe("registerWebchatTranscriptMirror", () => {
         );
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(fetchMock.mock.calls[0]?.[0]).toBe("https://mirror.example.com/api/v1/claw-team/webchat-mirror");
+        expect(fetchMock.mock.calls[0]?.[0]).toBe("https://mirror.example.com/api/v1/clawswarm/webchat-mirror");
         expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
             method: "POST",
             headers: {

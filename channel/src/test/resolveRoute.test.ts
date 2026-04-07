@@ -9,7 +9,7 @@ import { resolveRoute } from "../router/resolveRoute.js";
 
 // 用一份最小但完整的配置，避免每个测试重复写 schema 默认值。
 const account = AccountConfigSchema.parse({
-    baseUrl: "https://claw-team.example.com",
+    baseUrl: "https://clawswarm.example.com",
     outboundToken: "outbound-token",
     inboundSigningSecret: "1234567890123456",
     agentDirectory: {

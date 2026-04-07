@@ -1,5 +1,5 @@
 """
-这个文件负责接收 claw-team channel 回调回来的执行事件。
+这个文件负责接收 clawswarm channel 回调回来的执行事件。
 
 主要职责：
 1. 校验 callback token 和可选签名。
@@ -39,9 +39,9 @@ from src.services.agent_dialogue_runner import continue_agent_dialogue_after_rep
 from src.services.agent_ct_id import ensure_agent_ct_id
 from src.services.default_user import get_default_user_identity
 
-router = APIRouter(prefix="/api/v1/claw-team", tags=["callbacks"])
+router = APIRouter(prefix="/api/v1/clawswarm", tags=["callbacks"])
 
-CHANNEL_ID = "claw-team"
+CHANNEL_ID = "clawswarm"
 WEBCHAT_CHANNEL_ID = "webchat"
 AGENT_SESSION_PREFIX = "agent:"
 WEBCHAT_MIRROR_EVENT_SOURCE = "webchat_mirror"
@@ -82,8 +82,8 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
     # body 需要既参与签名校验，也要做 JSON 解析，所以这里先完整读出字节串。
     body = await request.body()
     auth_header = request.headers.get("authorization", "")
-    timestamp = request.headers.get("x-claw-team-timestamp", "")
-    signature = request.headers.get("x-claw-team-signature", "")
+    timestamp = request.headers.get("x-clawswarm-timestamp", "")
+    signature = request.headers.get("x-clawswarm-signature", "")
 
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="missing bearer token")
@@ -334,7 +334,7 @@ async def receive_send_text(
     db: Session = Depends(db_session),
 ) -> dict[str, Any]:
     """
-    这是给 claw-team channel outbound.sendText 用的最小业务入口。
+    这是给 clawswarm channel outbound.sendText 用的最小业务入口。
 
     第一阶段只支持一件事：
     - 用结构化 JSON 发起一条 Agent 对话

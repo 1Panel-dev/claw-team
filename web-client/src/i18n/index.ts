@@ -5,7 +5,7 @@ import { zhCN } from "@/i18n/zh-CN";
 
 export type SupportedLocale = "en" | "zh-CN";
 export type MessageTree = Record<string, unknown>;
-const LOCALE_STORAGE_KEY = "claw-team.locale";
+const LOCALE_STORAGE_KEY = "clawswarm.locale";
 
 export const messages = {
     en,

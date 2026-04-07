@@ -5,7 +5,7 @@ import { dispatchGroup } from "../dispatcher/dispatchGroup.js";
 import { buildSessionKey } from "../router/sessionKey.js";
 import { InboundMessageSchema, resolveRoute } from "../router/resolveRoute.js";
 import { verifyInboundSignature } from "../security/signature.js";
-import type { ClawTeamCallbackClient } from "../callback/client.js";
+import type { ClawSwarmCallbackClient } from "../callback/client.js";
 import type { AccountConfig } from "../config.js";
 import type { Logger } from "../observability/logger.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
@@ -25,7 +25,7 @@ export async function handleInboundRoute(params: {
     logger: Logger;
     idempotency: IdempotencyStore;
     messageState: MessageStateStore;
-    clawTeamFactory: (acct: AccountConfig) => ClawTeamCallbackClient;
+    clawSwarmFactory: (acct: AccountConfig) => ClawSwarmCallbackClient;
     openclaw: OpenClawRuntimeAdapter;
 }): Promise<boolean> {
     const {
@@ -38,12 +38,12 @@ export async function handleInboundRoute(params: {
         logger,
         idempotency,
         messageState,
-        clawTeamFactory,
+        clawSwarmFactory,
         openclaw,
     } = params;
 
-    // 这是最核心的 webhook：Claw Team 后端把用户消息投递到这里。
-    if (pathname !== "/claw-team/v1/inbound" || method !== "POST") {
+    // 这是最核心的 webhook：ClawSwarm 后端把用户消息投递到这里。
+    if (pathname !== "/clawswarm/v1/inbound" || method !== "POST") {
         return false;
     }
 
@@ -99,7 +99,7 @@ export async function handleInboundRoute(params: {
         return true;
     }
 
-    const clawTeam = clawTeamFactory(acct2);
+    const clawSwarm = clawSwarmFactory(acct2);
 
     // route decision 决定了这条消息最终打给谁。
     let decision: RouteDecision;
@@ -146,7 +146,7 @@ export async function handleInboundRoute(params: {
                     logger: baseLog,
                     idempotency,
                     messageState,
-                    clawTeam,
+                    clawTeam: clawSwarm,
                     openclaw,
                     inbound,
                     agentId: decision.targetAgentIds[0],
@@ -161,7 +161,7 @@ export async function handleInboundRoute(params: {
                     logger: baseLog,
                     idempotency,
                     messageState,
-                    clawTeam,
+                    clawTeam: clawSwarm,
                     openclaw,
                     inbound,
                     agentIds: decision.targetAgentIds,

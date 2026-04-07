@@ -27,7 +27,7 @@ jobs:
       - name: Prepare
         id: prepare
         run: |
-          DOCKER_IMAGE=ghcr.io/1panel-dev/claw-team-base
+          DOCKER_IMAGE=ghcr.io/1panel-dev/clawswarm-base
           DOCKER_PLATFORMS=${{ github.event.inputs.architecture }}
           TAG_NAME=python3.12-20260401
           DOCKER_IMAGE_TAGS="--tag ${DOCKER_IMAGE}:${TAG_NAME}"

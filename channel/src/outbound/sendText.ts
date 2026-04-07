@@ -1,9 +1,9 @@
 export { AGENT_DIALOGUE_START_KIND, parseAgentDialogueStartPayload } from "./sendTextContract.js";
 export {
     CT_ID_PREFIX,
-    looksLikeClawTeamCtId,
+    looksLikeClawSwarmCtId,
     normalizeTargetCtId,
-    resolveClawTeamMessagingTarget,
-    resolveClawTeamTarget,
+    resolveClawSwarmMessagingTarget,
+    resolveClawSwarmTarget,
 } from "./sendTextTarget.js";
-export { sendClawTeamText } from "./sendTextService.js";
+export { sendClawSwarmText } from "./sendTextService.js";

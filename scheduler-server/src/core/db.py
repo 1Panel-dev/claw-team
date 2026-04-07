@@ -97,8 +97,8 @@ def ensure_runtime_schema() -> None:
 
     if "agent_profiles" in table_names:
         agent_columns = {column["name"] for column in inspector.get_columns("agent_profiles")}
-        if "created_via_claw_team" not in agent_columns:
-            statements.append("ALTER TABLE agent_profiles ADD COLUMN created_via_claw_team BOOLEAN DEFAULT 0")
+        if "created_via_clawswarm" not in agent_columns:
+            statements.append("ALTER TABLE agent_profiles ADD COLUMN created_via_clawswarm BOOLEAN DEFAULT 0")
         if "ct_id" not in agent_columns:
             statements.append("ALTER TABLE agent_profiles ADD COLUMN ct_id VARCHAR(32)")
             statements.append("CREATE INDEX IF NOT EXISTS ix_agent_profiles_ct_id ON agent_profiles (ct_id)")

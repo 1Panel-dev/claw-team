@@ -11,14 +11,14 @@ CTA-0010
 Channel action:
 
 ```text
-Use Claw Team Channel to send a message to CTA-0010.
+Use ClawSwarm Channel to send a message to CTA-0010.
 ```
 
 Equivalent phrasing:
 
 ```text
 Use CT Channel to send a message to CTA-0010.
-Use claw-team to send a message to CTA-0010.
+Use clawswarm to send a message to CTA-0010.
 Start a CT Call to CTA-0010.
 ```
 
@@ -45,14 +45,14 @@ CTA-0009
 Channel action:
 
 ```text
-Use Claw Team Channel to send a message to CTA-0009.
+Use ClawSwarm Channel to send a message to CTA-0009.
 ```
 
 Equivalent phrasing:
 
 ```text
 Use CT Channel to send a message to CTA-0009.
-Use claw-team to send a message to CTA-0009.
+Use clawswarm to send a message to CTA-0009.
 Start a CT Call to CTA-0009.
 ```
 
@@ -79,14 +79,14 @@ CTU-0001
 Channel action:
 
 ```text
-Use Claw Team Channel to send a message to CTU-0001.
+Use ClawSwarm Channel to send a message to CTU-0001.
 ```
 
 Equivalent phrasing:
 
 ```text
 Use CT Channel to send a message to CTU-0001.
-Use claw-team to send a message to CTU-0001.
+Use clawswarm to send a message to CTU-0001.
 Start a CT Call to CTU-0001.
 ```
 

@@ -19,11 +19,11 @@ function parseJsonObject(text: string): Record<string, unknown> {
     try {
         parsed = JSON.parse(text);
     } catch {
-        throw new Error("claw_team_send_text_invalid_json");
+        throw new Error("clawswarm_send_text_invalid_json");
     }
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("claw_team_send_text_invalid_payload");
+        throw new Error("clawswarm_send_text_invalid_payload");
     }
 
     return parsed as Record<string, unknown>;
@@ -32,7 +32,7 @@ function parseJsonObject(text: string): Record<string, unknown> {
 export function parseAgentDialogueStartPayload(text: string): AgentDialogueStartPayload {
     const record = parseJsonObject(text);
     if (String(record.kind ?? "").trim() !== AGENT_DIALOGUE_START_KIND) {
-        throw new Error("claw_team_send_text_unsupported_kind");
+        throw new Error("clawswarm_send_text_unsupported_kind");
     }
 
     const sourceCtId = String(record.sourceCtId ?? "").trim().toUpperCase();
@@ -43,13 +43,13 @@ export function parseAgentDialogueStartPayload(text: string): AgentDialogueStart
     const hardMessageLimit = typeof record.hardMessageLimit === "number" ? record.hardMessageLimit : undefined;
 
     if (!/^CTA-\d{4,}$/.test(sourceCtId)) {
-        throw new Error("claw_team_send_text_invalid_source_ct_id");
+        throw new Error("clawswarm_send_text_invalid_source_ct_id");
     }
     if (!topic) {
-        throw new Error("claw_team_send_text_missing_topic");
+        throw new Error("clawswarm_send_text_missing_topic");
     }
     if (!message) {
-        throw new Error("claw_team_send_text_missing_message");
+        throw new Error("clawswarm_send_text_missing_message");
     }
 
     return {

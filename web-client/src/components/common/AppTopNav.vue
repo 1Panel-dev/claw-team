@@ -1,7 +1,7 @@
 <template>
   <header class="top-nav">
     <div class="top-nav__brand">
-      <img class="top-nav__logo" src="/Logo-2.png" alt="Claw Team Logo"/>
+      <img class="top-nav__logo" src="/Logo-2.png" alt="ClawSwarm Logo"/>
     </div>
 
     <nav class="top-nav__actions">
@@ -128,10 +128,10 @@ onMounted(() => {
   if (typeof window === "undefined") {
     return;
   }
-  if (window.localStorage.getItem("claw-team.open-account-dialog") !== "1") {
+  if (window.localStorage.getItem("clawswarm.open-account-dialog") !== "1") {
     return;
   }
-  window.localStorage.removeItem("claw-team.open-account-dialog");
+  window.localStorage.removeItem("clawswarm.open-account-dialog");
   accountDialogVisible.value = true;
 });
 </script>

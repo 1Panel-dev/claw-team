@@ -1,10 +1,10 @@
 {
-  "id": "claw-team",
-  "name": "Claw Team Channel",
+  "id": "clawswarm",
+  "name": "ClawSwarm Channel",
   "version": "1.0.2",
-  "description": "Claw Team 与 OpenClaw 的桥接通道，支持单聊、群聊、@mention",
+  "description": "ClawSwarm 与 OpenClaw 的桥接通道，支持单聊、群聊、@mention",
   "kind": "channel",
-  "channels": ["claw-team"],
+  "channels": ["clawswarm"],
   "skills": ["./skills"],
   "configSchema": {
     "type": "object",
@@ -19,15 +19,15 @@
             "enabled": { "type": "boolean", "default": true },
             "baseUrl": {
               "type": "string",
-              "description": "Claw Team 后端地址（例如 http://127.0.0.1:8080）"
+              "description": "ClawSwarm 后端地址（例如 http://127.0.0.1:8080）"
             },
             "outboundToken": {
               "type": "string",
-              "description": "插件调用 Claw Team 时使用的 Token"
+              "description": "插件调用 ClawSwarm 时使用的 Token"
             },
             "inboundSigningSecret": {
               "type": "string",
-              "description": "Claw Team 调用插件 webhook 时的签名密钥"
+              "description": "ClawSwarm 调用插件 webhook 时的签名密钥"
             },
             "webchatMirror": {
               "type": "object",

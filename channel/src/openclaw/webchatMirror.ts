@@ -5,14 +5,14 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import type { Logger } from "../observability/logger.js";
 import { clearLocalOriginSession, isLocalOriginSession } from "./mirrorOriginRegistry.js";
 
-const WEBCHAT_MIRROR_LOG_PATH = "/tmp/claw-team-webchat-mirror.log";
-const CHANNEL_ID = "claw-team";
+const WEBCHAT_MIRROR_LOG_PATH = "/tmp/clawswarm-webchat-mirror.log";
+const CHANNEL_ID = "clawswarm";
 const WEBCHAT_CHANNEL_ID = "webchat";
 const AGENT_SESSION_PREFIX = "agent:";
-const WEBCHAT_MIRROR_PATH = "/api/v1/claw-team/webchat-mirror";
+const WEBCHAT_MIRROR_PATH = "/api/v1/clawswarm/webchat-mirror";
 const ASSISTANT_SENDER_TYPE = "assistant";
 const USER_SENDER_TYPE = "user";
-const INTERNAL_DIALOGUE_USER_PREFIX = "[Claw Team Agent Dialogue]";
+const INTERNAL_DIALOGUE_USER_PREFIX = "[ClawSwarm Agent Dialogue]";
 const PENDING_WEBCHAT_TURN_TTL_MS = 60_000;
 const ACTIVE_SESSION_TTL_MS = 10 * 60_000;
 
@@ -25,7 +25,7 @@ const MIRROR_HOOK_EVENTS = [
     "llm_output",
 ] as const;
 
-type ClawTeamAccountConfig = {
+type ClawSwarmAccountConfig = {
     baseUrl?: string;
     outboundToken?: string;
     webchatMirror?: {
@@ -204,7 +204,7 @@ function sanitizeForJson(value: unknown, depth = 0): unknown {
     return String(value);
 }
 
-function readAccountFromConfig(config: any, accountId?: string): ClawTeamAccountConfig | null {
+function readAccountFromConfig(config: any, accountId?: string): ClawSwarmAccountConfig | null {
     const account =
         config?.channels?.[CHANNEL_ID]?.accounts?.[accountId ?? "default"] &&
         typeof config.channels[CHANNEL_ID].accounts[accountId ?? "default"] === "object"
@@ -708,7 +708,7 @@ async function postMirrorPayload(
     }
     const config = readMirrorConfig(api, event, ctx);
     if (!config) {
-        logger.warn({}, "Missing claw-team account config for webchat mirror");
+        logger.warn({}, "Missing clawswarm account config for webchat mirror");
         return;
     }
 

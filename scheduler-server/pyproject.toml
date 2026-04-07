@@ -1,7 +1,7 @@
 [project]
-name = "claw-team-scheduler-server"
+name = "clawswarm-scheduler-server"
 version = "0.1.0"
-description = "Claw Team scheduler backend service"
+description = "ClawSwarm scheduler backend service"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

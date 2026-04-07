@@ -4,15 +4,15 @@
 
 `ct-chat` is a communication skill.
 
-- choose the Claw Team send path
+- choose the ClawSwarm send path
 - send the structured message correctly
 
 ## Send Path
 
 The following names all mean the same communication path:
 
-- `Claw Team Channel`
-- `claw-team`
+- `ClawSwarm Channel`
+- `clawswarm`
 - `CT Channel`
 - `CT`
 - `CT Call`

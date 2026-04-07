@@ -1,8 +1,8 @@
 """
-这里统一管理 Claw Team 内部的 Agent CT ID。
+这里统一管理 ClawSwarm 内部的 Agent CT ID。
 
 设计目标：
-1. CT ID 只作为 Claw Team 内部稳定寻址标识，不依赖实例名或 display_name。
+1. CT ID 只作为 ClawSwarm 内部稳定寻址标识，不依赖实例名或 display_name。
 2. 历史 Agent 没有 ct_id 时，也能按主键生成稳定值，避免一次改名牵出整条链路。
 3. 生成规则保持单点来源，后续如果要换格式，只改这里。
 """

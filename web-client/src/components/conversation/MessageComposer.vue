@@ -88,7 +88,7 @@ type SendShortcut = {
     shiftKey: boolean;
 };
 
-const SEND_SHORTCUT_STORAGE_KEY = "claw-team.send-shortcut";
+const SEND_SHORTCUT_STORAGE_KEY = "clawswarm.send-shortcut";
 const DEFAULT_SHORTCUT: SendShortcut = {
     altKey: false,
     ctrlKey: true,

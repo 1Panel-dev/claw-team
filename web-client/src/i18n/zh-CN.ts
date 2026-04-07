@@ -38,7 +38,7 @@ export const zhCN = {
     conversation: {
         search: "搜索",
         createGroup: "新建群组",
-        drawerGroupHint: "群组由 Claw Team 调度中心维护。第一阶段先支持创建群组与后续添加成员。",
+        drawerGroupHint: "群组由 ClawSwarm 调度中心维护。第一阶段先支持创建群组与后续添加成员。",
         switchView: "切换视图",
         loadingConversations: "正在加载会话...",
         noMatchingConversations: "没有匹配的会话。",

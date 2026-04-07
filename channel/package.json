@@ -1,19 +1,19 @@
 {
-  "name": "@1panel-dev/claw-team",
+  "name": "@1panel-dev/clawswarm",
   "version": "1.0.2",
   "type": "module",
-  "description": "OpenClaw Claw Team channel plugin.",
+  "description": "OpenClaw ClawSwarm channel plugin.",
   "license": "GPL-3.0 license",
-  "homepage": "https://github.com/1Panel-dev/claw-team/tree/main/channel",
+  "homepage": "https://github.com/1Panel-dev/clawswarm/tree/main/channel",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/1Panel-dev/claw-team.git",
+    "url": "git+https://github.com/1Panel-dev/clawswarm.git",
     "directory": "channel"
   },
   "bugs": {
-    "url": "https://github.com/1Panel-dev/claw-team/issues"
+    "url": "https://github.com/1Panel-dev/clawswarm/issues"
   },
-  "keywords": ["openclaw", "channel", "plugin", "claw-team", "agent"],
+  "keywords": ["openclaw", "channel", "plugin", "clawswarm", "agent"],
   "publishConfig": {
     "access": "public"
   },

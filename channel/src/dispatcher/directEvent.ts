@@ -1,23 +1,23 @@
 import crypto from "node:crypto";
 
 import { sendEventWithRetry } from "../callback/retry.js";
-import type { ClawTeamCallbackClient, ClawTeamEvent } from "../callback/client.js";
+import type { ClawSwarmCallbackClient, ClawSwarmEvent } from "../callback/client.js";
 import type { AccountConfig } from "../config.js";
 import type { Logger } from "../observability/logger.js";
 import type { InboundMessage } from "../router/resolveRoute.js";
 
 // emitDirectEvent 统一负责构造事件对象并走带重试的回调发送。
 export async function emitDirectEvent(params: {
-    clawTeam: ClawTeamCallbackClient;
+    clawSwarm: ClawSwarmCallbackClient;
     baseLog: Logger;
     accountConfig: AccountConfig;
-    eventType: ClawTeamEvent["eventType"];
+    eventType: ClawSwarmEvent["eventType"];
     inbound: InboundMessage;
     agentId: string;
     sessionKey: string;
     payload: Record<string, unknown>;
 }): Promise<void> {
-    const ev: ClawTeamEvent = {
+    const ev: ClawSwarmEvent = {
         // eventId 是回调事件自身的唯一标识，不等同于 messageId。
         eventId: crypto.randomUUID(),
         eventType: params.eventType,
@@ -32,7 +32,7 @@ export async function emitDirectEvent(params: {
     };
 
     await sendEventWithRetry({
-        client: params.clawTeam,
+        client: params.clawSwarm,
         event: ev,
         policy: params.accountConfig.retry,
         logger: params.baseLog,

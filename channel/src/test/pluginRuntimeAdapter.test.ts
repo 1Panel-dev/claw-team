@@ -11,7 +11,7 @@ vi.mock("openclaw/plugin-sdk/channel-inbound", () => ({
 
 const gateway = resolveGatewayRuntimeConfig(
     AccountConfigSchema.parse({
-        baseUrl: "https://claw-team.example.com",
+        baseUrl: "https://clawswarm.example.com",
         outboundToken: "outbound-token",
         inboundSigningSecret: "1234567890123456",
         gateway: {
@@ -55,7 +55,7 @@ describe("createPluginRuntimeAdapter", () => {
         const chunks: string[] = [];
         for await (const chunk of adapter.runAgentTextTurn({
             agentId: "weather",
-            channelId: "claw-team",
+            channelId: "clawswarm",
             accountId: "default",
             sessionKey: "agent:weather:weather",
             peer: { kind: "direct", id: "conv-1" },
@@ -81,7 +81,7 @@ describe("createPluginRuntimeAdapter", () => {
         await expect(async () => {
             for await (const _chunk of adapter.runAgentTextTurn({
                 agentId: "weather",
-                channelId: "claw-team",
+                channelId: "clawswarm",
                 accountId: "default",
                 sessionKey: "agent:weather:weather",
                 peer: { kind: "direct", id: "conv-1" },
@@ -140,7 +140,7 @@ describe("createPluginRuntimeAdapter", () => {
         const chunks: string[] = [];
         for await (const chunk of adapter.runAgentTextTurn({
             agentId: "weather",
-            channelId: "claw-team",
+            channelId: "clawswarm",
             accountId: "default",
             sessionKey: "agent:weather:weather",
             peer: { kind: "direct", id: "conv-1" },

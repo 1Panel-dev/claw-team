@@ -1,5 +1,5 @@
 /**
- * 这个文件负责把 Agent 执行事件回推给 Claw Team。
+ * 这个文件负责把 Agent 执行事件回推给 ClawSwarm。
  * 它只关心“怎么发出去”，不关心“什么时候发、失败后怎么重试”。
  *
  * 调用流程：
@@ -12,12 +12,12 @@ import crypto from "node:crypto";
 import { request } from "undici";
 import type { Logger } from "../observability/logger.js";
 
-// 插件当前向 Claw Team 回推的事件类型。
-export type ClawTeamEventType = "run.accepted" | "reply.chunk" | "reply.final" | "run.error";
+// 插件当前向 ClawSwarm 回推的事件类型。
+export type ClawSwarmEventType = "run.accepted" | "reply.chunk" | "reply.final" | "run.error";
 
-export type ClawTeamEvent = {
+export type ClawSwarmEvent = {
     eventId: string;
-    eventType: ClawTeamEventType;
+    eventType: ClawSwarmEventType;
     correlation: {
         messageId: string;
         chatId: string;
@@ -29,11 +29,11 @@ export type ClawTeamEvent = {
 };
 
 // 用接口包一层，方便未来替换成队列、SSE 或其它回调实现。
-export interface ClawTeamCallbackClient {
-    sendEvent(event: ClawTeamEvent): Promise<void>;
+export interface ClawSwarmCallbackClient {
+    sendEvent(event: ClawSwarmEvent): Promise<void>;
 }
 
-export class HttpClawTeamCallbackClient implements ClawTeamCallbackClient {
+export class HttpClawSwarmCallbackClient implements ClawSwarmCallbackClient {
     constructor(
         private opts: {
             baseUrl: string;
@@ -43,8 +43,8 @@ export class HttpClawTeamCallbackClient implements ClawTeamCallbackClient {
         },
     ) {}
 
-    async sendEvent(event: ClawTeamEvent): Promise<void> {
-        const url = new URL("/api/v1/claw-team/events", this.opts.baseUrl).toString();
+    async sendEvent(event: ClawSwarmEvent): Promise<void> {
+        const url = new URL("/api/v1/clawswarm/events", this.opts.baseUrl).toString();
         const body = JSON.stringify(event);
         // timestamp + body 做 HMAC，便于对端做防篡改校验。
         const timestamp = Date.now().toString();
@@ -55,8 +55,8 @@ export class HttpClawTeamCallbackClient implements ClawTeamCallbackClient {
             headers: {
                 "content-type": "application/json; charset=utf-8",
                 authorization: `Bearer ${this.opts.token}`,
-                "x-claw-team-timestamp": timestamp,
-                "x-claw-team-signature": `sha256=${signature}`,
+                "x-clawswarm-timestamp": timestamp,
+                "x-clawswarm-signature": `sha256=${signature}`,
             },
             body,
             headersTimeout: this.opts.timeoutMs,
@@ -68,9 +68,9 @@ export class HttpClawTeamCallbackClient implements ClawTeamCallbackClient {
             const txt = await res.body.text().catch(() => "");
             this.opts.logger.warn(
                 { statusCode: res.statusCode, body: truncate(txt, 300) },
-                "Claw Team callback non-2xx",
+                "ClawSwarm callback non-2xx",
             );
-            throw new Error(`claw_team_callback_http_${res.statusCode}`);
+            throw new Error(`clawswarm_callback_http_${res.statusCode}`);
         }
     }
 }

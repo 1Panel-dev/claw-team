@@ -6,7 +6,7 @@ import { fetchMockAddressBook, fetchMockConversationList, isMessageMockEnabled }
 import type { AddressBookResponseApi } from "@/types/api/addressBook";
 import type { ConversationListItemApi } from "@/types/api/conversation";
 
-const HIDDEN_RECENT_STORAGE_KEY = "claw-team:hidden-recent-conversations";
+const HIDDEN_RECENT_STORAGE_KEY = "clawswarm:hidden-recent-conversations";
 
 type HiddenRecentConversationEntry = {
     hidden_at: string;

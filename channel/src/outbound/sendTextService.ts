@@ -1,7 +1,7 @@
 import type { Logger } from "../observability/logger.js";
 import { CHANNEL_ID, type AccountConfig } from "../config.js";
 import { AGENT_DIALOGUE_START_KIND, parseAgentDialogueStartPayload } from "./sendTextContract.js";
-import { postClawTeamSendText } from "./sendTextHttp.js";
+import { postClawSwarmSendText } from "./sendTextHttp.js";
 import { normalizeTargetCtId } from "./sendTextTarget.js";
 
 type SendTextContext = {
@@ -22,7 +22,7 @@ type SendTextResult = {
     meta?: Record<string, unknown>;
 };
 
-export async function sendClawTeamText(params: {
+export async function sendClawSwarmText(params: {
     ctx: SendTextContext;
     account: AccountConfig;
     logger: Logger;
@@ -35,15 +35,15 @@ export async function sendClawTeamText(params: {
             {
                 rawTarget: String(params.ctx.to ?? ""),
             },
-            "Claw Team sendText received an invalid CT target",
+            "ClawSwarm sendText received an invalid CT target",
         );
-        throw new Error("claw_team_invalid_target_ct_id");
+        throw new Error("clawswarm_invalid_target_ct_id");
     }
 
     const payload = parseAgentDialogueStartPayload(params.ctx.text);
 
     try {
-        const response = await postClawTeamSendText({
+        const response = await postClawSwarmSendText({
             account: params.account,
             payload: {
                 kind: payload.kind,
@@ -58,7 +58,7 @@ export async function sendClawTeamText(params: {
         });
 
         return {
-            messageId: response.openingMessageId || `claw-team:${CHANNEL_ID}:${response.dialogueId || "unknown"}`,
+            messageId: response.openingMessageId || `clawswarm:${CHANNEL_ID}:${response.dialogueId || "unknown"}`,
             ...(response.conversationId > 0 ? { conversationId: String(response.conversationId) } : {}),
             meta: {
                 kind: AGENT_DIALOGUE_START_KIND,
@@ -79,7 +79,7 @@ export async function sendClawTeamText(params: {
                 body: detail,
                 error: error instanceof Error ? error.message : String(error),
             },
-            "Claw Team sendText request failed",
+            "ClawSwarm sendText request failed",
         );
         throw error;
     }

@@ -1,4 +1,4 @@
-# Claw Team Channel Plugin
+# ClawSwarm Channel Plugin
 
 [中文版](./README.zh-CN.md)
 
@@ -7,6 +7,6 @@
 - [Human Install](./docs/human-install.en.md)
 - [Agent Install](./docs/agent-install.en.md)
 
-`channel/` is the native OpenClaw channel plugin for Claw Team.
+`channel/` is the native OpenClaw channel plugin for ClawSwarm.
 
-Its purpose is to connect the Claw Team scheduler with OpenClaw Gateway so users can talk to multiple agents through direct chat, group chat, and `@mention` routing.
+Its purpose is to connect the ClawSwarm scheduler with OpenClaw Gateway so users can talk to multiple agents through direct chat, group chat, and `@mention` routing.
