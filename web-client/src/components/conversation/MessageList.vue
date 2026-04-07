@@ -11,26 +11,25 @@
         v-for="message in visibleMessageViews"
         :key="message.id"
         class="message-list__item"
-        :class="{
-          'message-list__item--user': message.senderType === 'user',
-          'message-list__item--process': isCompactProcessMessage(message),
-          'message-list__item--speaker-accented': shouldAccentSpeakers && !!speakerColorMap[message.senderLabel],
-        }"
+        :class="messageItemClass(message)"
         :style="speakerStyleFor(message)"
       >
         <div class="message-list__meta" :class="{ 'message-list__meta--process': isCompactProcessMessage(message) }">
           <div class="message-list__meta-main">
+            <span
+              v-if="!isCompactProcessMessage(message) && senderMetaFor(message)?.instanceName"
+              class="message-list__sender-instance"
+            >
+              {{ senderMetaFor(message)?.instanceName }}
+            </span>
             <span class="message-list__sender">{{ displaySenderLabel(message) }}</span>
             <span
-              v-if="!isCompactProcessMessage(message) && resolvedSenderMetaMap[message.senderLabel]?.roleName"
+              v-if="!isCompactProcessMessage(message) && senderMetaFor(message)?.roleName"
               class="message-list__sender-role"
             >
-              / {{ resolvedSenderMetaMap[message.senderLabel]?.roleName }}
+              / {{ senderMetaFor(message)?.roleName }}
             </span>
-            <span
-              v-if="message.source === 'webchat'"
-              class="message-list__source-badge"
-            >
+            <span v-if="message.source === 'webchat'" class="message-list__source-badge">
               {{ t("conversation.sourceWebchat") }}
             </span>
           </div>
@@ -50,6 +49,7 @@
             </ElButton>
           </div>
         </div>
+
         <div class="message-list__parts">
           <template v-for="(part, index) in message.parts" :key="`${message.id}-${part.kind}-${index}`">
             <MessageMarkdown
@@ -73,6 +73,7 @@
             />
           </template>
         </div>
+
         <div v-if="!isCompactProcessMessage(message)" class="message-list__actions">
           <ElButton
             class="message-list__copy-button"
@@ -87,25 +88,20 @@
           </ElButton>
         </div>
       </div>
+
       <div v-if="showTypingIndicator" class="message-list__typing">
         <span class="message-list__typing-dot" />
         <span class="message-list__typing-dot" />
         <span class="message-list__typing-dot" />
         <span class="message-list__typing-text">{{ t("conversation.replying") }}</span>
       </div>
+
       <div ref="bottomRef" class="message-list__bottom-anchor" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-/**
- * MessageList 先保持成“稳定聊天列表”。
- *
- * 这里暂时不做虚拟滚动和复杂预取状态机，
- * 只渲染当前 store 已经加载好的消息，并确保进入会话时默认落到底部。
- * 历史消息只在接近顶部时按页补载，保持实现简单、体验稳定。
- */
 import { CopyDocument } from "@element-plus/icons-vue";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 
@@ -118,35 +114,36 @@ import type { MessagePartView, MessageView } from "@/types/view/message";
 import { toMessageView } from "@/types/view/message";
 import { formatServerDateTime } from "@/utils/datetime";
 
+type SenderMeta = {
+    roleName?: string | null;
+    csId?: string | null;
+    instanceName?: string | null;
+};
+
 const props = defineProps<{
     messages: MessageReadApi[];
     loading: boolean;
     hasMoreMessages?: boolean;
     loadingOlderMessages?: boolean;
     showTypingIndicator?: boolean;
-    senderMetaMap?: Record<string, { roleName?: string | null }>;
+    senderMetaMap?: Record<string, SenderMeta>;
 }>();
+
 const emit = defineEmits<{
     loadOlder: [];
 }>();
 
+const { locale, t } = useI18n();
 const containerRef = ref<HTMLElement | null>(null);
 const bottomRef = ref<HTMLElement | null>(null);
-const messageViews = computed(() => props.messages.map((item) => toMessageView(item)));
-// 空白消息在展示层没有任何价值，直接从渲染列表里去掉，
-// 比渲染一个再用 v-show 隐藏更干净，也不会留下无意义的 DOM。
-const visibleMessageViews = computed(() => messageViews.value.filter((item) => item.parts.length > 0));
-const hasInitializedScroll = ref(false);
 const copiedMessageId = ref<string | null>(null);
-const { locale, t } = useI18n();
-let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
-const resolvedSenderMetaMap = computed(() => props.senderMetaMap ?? {});
+const hasInitializedScroll = ref(false);
 const pendingOlderAnchor = ref<{ scrollHeight: number; scrollTop: number } | null>(null);
 const waitingOlderRequest = ref(false);
-// 记录“更新前是否贴着底部”。
-// 发送消息或收到新回复后，要根据这个状态决定是否继续自动跟随到底部，
-// 不能等内容变化后再判断，否则高度变了就容易误判成“不该滚动”。
 const shouldStickToBottom = ref(true);
+
+let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
+
 const OLDER_MESSAGES_TRIGGER_PX = 300;
 const SPEAKER_COLORS = [
     "#c05621",
@@ -158,6 +155,11 @@ const SPEAKER_COLORS = [
     "#b45309",
     "#1d4ed8",
 ];
+
+const resolvedSenderMetaMap = computed(() => props.senderMetaMap ?? {});
+const messageViews = computed(() => props.messages.map((item) => toMessageView(item)));
+const visibleMessageViews = computed(() => messageViews.value.filter((item) => item.parts.length > 0));
+
 const latestMessageTrigger = computed(() => {
     const lastMessage = props.messages.at(-1);
     return [
@@ -170,58 +172,21 @@ const latestMessageTrigger = computed(() => {
 });
 
 const speakerColorMap = computed<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    const labels = Array.from(
+    const speakerKeys = Array.from(
         new Set(
             messageViews.value
                 .filter((message) => message.senderType !== "user" && message.senderType !== "system")
-                .map((message) => message.senderLabel.trim())
-                .filter(Boolean),
+                .map((message) => speakerKeyFor(message))
+                .filter((value): value is string => Boolean(value)),
         ),
     );
-    for (const [index, label] of labels.entries()) {
-        map[label] = SPEAKER_COLORS[index % SPEAKER_COLORS.length];
-    }
-    return map;
+
+    return Object.fromEntries(
+        speakerKeys.map((key, index) => [key, SPEAKER_COLORS[index % SPEAKER_COLORS.length]]),
+    );
 });
 
 const shouldAccentSpeakers = computed(() => Object.keys(speakerColorMap.value).length > 1);
-
-async function scrollToBottom(behavior: ScrollBehavior = "smooth") {
-    await nextTick();
-    if (bottomRef.value) {
-        bottomRef.value.scrollIntoView({ behavior, block: "end" });
-        return;
-    }
-    if (containerRef.value) {
-        containerRef.value.scrollTop = containerRef.value.scrollHeight;
-    }
-}
-
-function isNearBottom() {
-    if (!containerRef.value) {
-        return true;
-    }
-    return containerRef.value.scrollHeight - (containerRef.value.scrollTop + containerRef.value.clientHeight) < 160;
-}
-
-async function syncLatestScrollPosition() {
-    // 首次进入会话时，消息通常是异步拉取的。
-    // 只有等第一批数据真正落地后，才把位置直接定到底部；
-    // 后续新增消息或流式更新，再使用平滑滚动。
-    if (!hasInitializedScroll.value) {
-        if (props.loading && !props.messages.length) {
-            return;
-        }
-        await scrollToBottom("auto");
-        hasInitializedScroll.value = true;
-        return;
-    }
-
-    if (shouldStickToBottom.value) {
-        await scrollToBottom("smooth");
-    }
-}
 
 watch(
     latestMessageTrigger,
@@ -242,10 +207,13 @@ watch(
         }
         await nextTick();
         const container = containerRef.value;
-        if (container) {
-            const delta = container.scrollHeight - pendingOlderAnchor.value.scrollHeight;
-            container.scrollTop = pendingOlderAnchor.value.scrollTop + delta;
+        if (!container) {
+            pendingOlderAnchor.value = null;
+            waitingOlderRequest.value = false;
+            return;
         }
+        const delta = container.scrollHeight - pendingOlderAnchor.value.scrollHeight;
+        container.scrollTop = pendingOlderAnchor.value.scrollTop + delta;
         pendingOlderAnchor.value = null;
         waitingOlderRequest.value = false;
     },
@@ -260,6 +228,51 @@ watch(
     },
 );
 
+function normalizedSenderCsId(message: MessageView) {
+    return message.senderCsId?.trim() || "";
+}
+
+function normalizedSenderLabel(message: MessageView) {
+    return message.senderLabel.trim();
+}
+
+function speakerKeyFor(message: MessageView) {
+    return normalizedSenderCsId(message) || normalizedSenderLabel(message) || message.id;
+}
+
+function senderMetaFor(message: MessageView) {
+    const csId = normalizedSenderCsId(message);
+    if (csId && resolvedSenderMetaMap.value[csId]) {
+        return resolvedSenderMetaMap.value[csId];
+    }
+    const label = normalizedSenderLabel(message);
+    if (label && resolvedSenderMetaMap.value[label]) {
+        return resolvedSenderMetaMap.value[label];
+    }
+    return undefined;
+}
+
+function messageItemClass(message: MessageView) {
+    return {
+        "message-list__item--user": message.senderType === "user",
+        "message-list__item--process": isCompactProcessMessage(message),
+        "message-list__item--speaker-accented": shouldAccentSpeakers.value && Boolean(speakerColorMap.value[speakerKeyFor(message)]),
+    };
+}
+
+function speakerStyleFor(message: MessageView) {
+    if (!shouldAccentSpeakers.value) {
+        return undefined;
+    }
+    const color = speakerColorMap.value[speakerKeyFor(message)];
+    if (!color) {
+        return undefined;
+    }
+    return {
+        "--message-speaker-color": color,
+    } as Record<string, string>;
+}
+
 function formatDateTime(value: string) {
     return formatServerDateTime(value, locale.value, {
         month: "numeric",
@@ -269,17 +282,36 @@ function formatDateTime(value: string) {
     });
 }
 
-function speakerStyleFor(message: MessageView) {
-    if (!shouldAccentSpeakers.value) {
-        return undefined;
+function isNearBottom() {
+    if (!containerRef.value) {
+        return true;
     }
-    const color = speakerColorMap.value[message.senderLabel];
-    if (!color) {
-        return undefined;
+    return containerRef.value.scrollHeight - (containerRef.value.scrollTop + containerRef.value.clientHeight) < 160;
+}
+
+async function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+    await nextTick();
+    if (bottomRef.value) {
+        bottomRef.value.scrollIntoView({ behavior, block: "end" });
+        return;
     }
-    return {
-        "--message-speaker-color": color,
-    } as Record<string, string>;
+    if (containerRef.value) {
+        containerRef.value.scrollTop = containerRef.value.scrollHeight;
+    }
+}
+
+async function syncLatestScrollPosition() {
+    if (!hasInitializedScroll.value) {
+        if (props.loading && !props.messages.length) {
+            return;
+        }
+        await scrollToBottom("auto");
+        hasInitializedScroll.value = true;
+        return;
+    }
+    if (shouldStickToBottom.value) {
+        await scrollToBottom("smooth");
+    }
 }
 
 function isCompactProcessMessage(message: MessageView) {
@@ -338,12 +370,8 @@ function formatMessagePart(part: MessagePartView): string {
     return [part.title, part.summary].filter(Boolean).join("\n");
 }
 
-function serializeMessage(message: MessageView): string {
-    return message.parts
-        .map((part) => formatMessagePart(part))
-        .filter(Boolean)
-        .join("\n\n")
-        .trim();
+function serializeMessage(message: MessageView) {
+    return message.parts.map((part) => formatMessagePart(part)).filter(Boolean).join("\n\n").trim();
 }
 
 async function copyMessage(message: MessageView) {
@@ -366,7 +394,6 @@ function requestOlderMessages() {
     if (!props.hasMoreMessages || props.loadingOlderMessages || waitingOlderRequest.value || !containerRef.value) {
         return;
     }
-    // 加载更早消息前记住当前滚动高度和位置，等 prepend 完成后把视角稳回原地。
     pendingOlderAnchor.value = {
         scrollHeight: containerRef.value.scrollHeight,
         scrollTop: containerRef.value.scrollTop,
@@ -380,8 +407,6 @@ function handleScroll() {
         return;
     }
     shouldStickToBottom.value = isNearBottom();
-    // 比“碰到顶部再加载”稍早一点触发，减少用户撞到边界的感觉，
-    // 但仍然保持逻辑简单，不重新引入复杂预取状态机。
     if (containerRef.value.scrollTop <= OLDER_MESSAGES_TRIGGER_PX) {
         requestOlderMessages();
     }
@@ -482,6 +507,12 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
   font-weight: 600;
   color: #7b8190;
+}
+
+.message-list__sender-instance {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--el-color-primary);
 }
 
 .message-list__item--speaker-accented .message-list__sender {
@@ -597,18 +628,30 @@ onBeforeUnmount(() => {
   }
   40% {
     opacity: 1;
-    transform: translateY(-1px);
+    transform: translateY(-3px);
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 960px) {
+  .message-list {
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .message-list__item,
+  .message-list__item--user,
+  .message-list__item--process {
+    width: 100%;
+  }
+
   .message-list__meta {
     flex-direction: column;
     align-items: flex-start;
   }
 
   .message-list__meta-side {
-    flex-wrap: wrap;
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

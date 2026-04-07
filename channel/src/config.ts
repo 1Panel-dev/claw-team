@@ -1,5 +1,5 @@
 // 统一维护 channel id，避免路由、sessionKey、配置路径出现硬编码分叉。
-export const CHANNEL_ID = "claw-team" as const;
+export const CHANNEL_ID = "clawswarm" as const;
 import { AccountConfigSchema } from "./config/schema.js";
 import { normalizeAccountConfigInput } from "./config/legacy.js";
 

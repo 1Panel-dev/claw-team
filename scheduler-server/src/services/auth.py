@@ -14,7 +14,7 @@ from src.core.config import settings
 from src.models.app_user import AppUser
 
 
-AUTH_COOKIE_NAME = "claw_team_session"
+AUTH_COOKIE_NAME = "clawswarm_session"
 AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 10
 PASSWORD_SCHEME = "pbkdf2_sha256"
 PASSWORD_ITERATIONS = 600_000

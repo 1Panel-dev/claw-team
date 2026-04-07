@@ -170,7 +170,7 @@
                 >
                   <div class="sidebar__item-body">
                     <div class="sidebar__item-title" :title="item.displayName">{{ item.displayName }}</div>
-                    <div class="sidebar__item-preview">{{ item.roleName || t("conversation.roleUnset") }} · {{ item.ctId }}</div>
+                    <div class="sidebar__item-preview">{{ item.roleName || t("conversation.roleUnset") }} · {{ item.csId }}</div>
                   </div>
                 </button>
               </div>
@@ -309,7 +309,7 @@ const filteredAgentGroups = computed(() =>
             const agentMatched = enabledAgents.some((agent) =>
                 agent.display_name.toLowerCase().includes(keyword.value)
                 || (agent.role_name ?? "").toLowerCase().includes(keyword.value)
-                || agent.ct_id.toLowerCase().includes(keyword.value),
+                || agent.cs_id.toLowerCase().includes(keyword.value),
             );
             if (!enabledAgents.length) {
                 return null;
@@ -326,7 +326,7 @@ const filteredAgentGroups = computed(() =>
                     agentId: agent.id,
                     displayName: agent.display_name,
                     roleName: agent.role_name,
-                    ctId: agent.ct_id,
+                    csId: agent.cs_id,
                 })),
             };
         })

@@ -2,11 +2,11 @@ export interface AgentReadApi {
     id: number;
     instance_id: number;
     agent_key: string;
-    ct_id: string;
+    cs_id: string;
     display_name: string;
     role_name: string | null;
     enabled: boolean;
-    created_via_claw_team: boolean;
+    created_via_clawswarm: boolean;
     created_at: string;
     updated_at: string;
 }

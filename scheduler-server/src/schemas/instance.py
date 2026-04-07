@@ -9,7 +9,7 @@ from src.schemas.common import TimestampedModel
 
 
 class InstanceCreate(BaseModel):
-    # 这些字段就是调度中心接入一套 claw-team channel 所需的最小连接信息。
+    # 这些字段就是调度中心接入一套 clawswarm channel 所需的最小连接信息。
     name: str = Field(min_length=1, max_length=120)
     channel_base_url: str = Field(min_length=1, max_length=500)
     channel_account_id: str = Field(default="default", min_length=1, max_length=120)

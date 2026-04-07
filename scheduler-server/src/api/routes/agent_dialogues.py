@@ -28,7 +28,7 @@ from src.services.agent_dialogue_runner import (
     next_agent_id_for_dialogue,
     resume_agent_dialogue_if_possible,
 )
-from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.default_user import get_default_user_identity
 
 router = APIRouter(prefix="/api/agent-dialogues", tags=["agent-dialogues"])
@@ -43,26 +43,26 @@ def serialize_agent_dialogue(db: Session, dialogue: AgentDialogue) -> AgentDialo
     source_instance = db.get(OpenClawInstance, source_agent.instance_id)
     target_instance = db.get(OpenClawInstance, target_agent.instance_id)
 
-    ensure_agent_ct_id(source_agent)
-    ensure_agent_ct_id(target_agent)
+    ensure_agent_cs_id(source_agent)
+    ensure_agent_cs_id(target_agent)
 
     last_speaker = db.get(AgentProfile, dialogue.last_speaker_agent_id) if dialogue.last_speaker_agent_id else None
     if last_speaker:
-        ensure_agent_ct_id(last_speaker)
+        ensure_agent_cs_id(last_speaker)
     next_agent_id = next_agent_id_for_dialogue(dialogue)
     next_agent = db.get(AgentProfile, next_agent_id) if next_agent_id else None
     if next_agent:
-        ensure_agent_ct_id(next_agent)
+        ensure_agent_cs_id(next_agent)
 
     return AgentDialogueRead(
         id=dialogue.id,
         conversation_id=dialogue.conversation_id,
         source_agent_id=dialogue.source_agent_id,
-        source_agent_ct_id=source_agent.ct_id or "",
+        source_agent_cs_id=source_agent.cs_id or "",
         source_agent_display_name=source_agent.display_name,
         source_agent_instance_name=(source_instance.name if source_instance else None),
         target_agent_id=dialogue.target_agent_id,
-        target_agent_ct_id=target_agent.ct_id or "",
+        target_agent_cs_id=target_agent.cs_id or "",
         target_agent_display_name=target_agent.display_name,
         target_agent_instance_name=(target_instance.name if target_instance else None),
         topic=dialogue.topic,
@@ -74,10 +74,10 @@ def serialize_agent_dialogue(db: Session, dialogue: AgentDialogue) -> AgentDialo
         hard_message_limit=dialogue.hard_message_limit,
         soft_limit_warned_at=dialogue.soft_limit_warned_at,
         last_speaker_agent_id=dialogue.last_speaker_agent_id,
-        last_speaker_agent_ct_id=(last_speaker.ct_id if last_speaker else None),
+        last_speaker_agent_cs_id=(last_speaker.cs_id if last_speaker else None),
         last_speaker_agent_display_name=(last_speaker.display_name if last_speaker else None),
         next_agent_id=(next_agent.id if next_agent else None),
-        next_agent_ct_id=(next_agent.ct_id if next_agent else None),
+        next_agent_cs_id=(next_agent.cs_id if next_agent else None),
         next_agent_display_name=(next_agent.display_name if next_agent else None),
         created_at=dialogue.created_at,
         updated_at=dialogue.updated_at,
@@ -143,6 +143,7 @@ async def create_agent_dialogue(payload: AgentDialogueCreate, db: Session = Depe
         conversation_id=conversation.id,
         sender_type="user",
         sender_label=DEFAULT_USER.sender_label,
+        sender_cs_id=DEFAULT_USER.cs_id,
         content=payload.topic.strip(),
         status="completed",
     )
@@ -201,6 +202,7 @@ async def add_agent_dialogue_message(
         conversation_id=dialogue.conversation_id,
         sender_type="user",
         sender_label=DEFAULT_USER.sender_label,
+        sender_cs_id=DEFAULT_USER.cs_id,
         content=payload.content.strip(),
         status="completed",
     )

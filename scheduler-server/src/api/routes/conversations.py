@@ -4,13 +4,13 @@
 主要职责：
 1. 创建单聊会话和群聊会话。
 2. 查询某个会话下的消息与 dispatch 状态。
-3. 接收用户发送的新消息，并把它分发到对应的 claw-team channel。
+3. 接收用户发送的新消息，并把它分发到对应的 clawswarm channel。
 
 调用流程：
 1. 前端先创建或获取一个 conversation。
 2. 前端向 /api/conversations/{conversation_id}/messages 发送消息。
 3. 这里先把用户消息落库，再按 direct / group 分支创建 dispatch。
-4. 然后调用 channel 插件的 /claw-team/v1/inbound。
+4. 然后调用 channel 插件的 /clawswarm/v1/inbound。
 5. 后续 agent 回复会由 callbacks.py 接收并回写数据库。
 """
 from __future__ import annotations
@@ -256,6 +256,7 @@ def list_conversation_messages(
         if include_dispatches
         else []
     )
+    sender_cs_id_map = _build_sender_cs_id_map(db=db, conversation=conversation, dialogue=dialogue)
     return ConversationMessagesResponse(
         conversation=ConversationRead(
             id=conversation.id,
@@ -268,13 +269,57 @@ def list_conversation_messages(
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
         ),
-        messages=[build_message_read(item) for item in messages],
+        messages=[
+            build_message_read(
+                item,
+                sender_cs_id=item.sender_cs_id or sender_cs_id_map.get((item.sender_label or "").strip()),
+            )
+            for item in messages
+        ],
         dispatches=[validate_orm(DispatchRead, item) for item in dispatches],
         next_message_cursor=messages[-1].id if messages else message_after,
         next_dispatch_cursor=dispatches[-1].id if dispatches else dispatch_after,
         has_more_messages=has_more_messages,
         oldest_loaded_message_id=messages[0].id if messages else before_message_id,
     )
+
+
+def _build_sender_cs_id_map(
+    *,
+    db: Session,
+    conversation: Conversation,
+    dialogue: AgentDialogue | None,
+) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+
+    if conversation.type == "agent_dialogue" and dialogue:
+        source_agent = db.get(AgentProfile, dialogue.source_agent_id)
+        target_agent = db.get(AgentProfile, dialogue.target_agent_id)
+        if source_agent and source_agent.cs_id and source_agent.display_name.strip():
+            mapping[source_agent.display_name.strip()] = source_agent.cs_id
+        if target_agent and target_agent.cs_id and target_agent.display_name.strip():
+            mapping[target_agent.display_name.strip()] = target_agent.cs_id
+        return mapping
+
+    if conversation.type == "group" and conversation.group_id:
+        members = list(
+            db.scalars(select(ChatGroupMember).where(ChatGroupMember.group_id == conversation.group_id))
+        )
+        for member in members:
+            agent = db.get(AgentProfile, member.agent_id)
+            if not agent or not agent.cs_id:
+                continue
+            label = (agent.display_name or "").strip()
+            if label and label not in mapping:
+                mapping[label] = agent.cs_id
+        return mapping
+
+    if conversation.type == "direct" and conversation.direct_agent_id:
+        agent = db.get(AgentProfile, conversation.direct_agent_id)
+        if agent and agent.cs_id and agent.display_name.strip():
+            mapping[agent.display_name.strip()] = agent.cs_id
+
+    return mapping
 
 
 def _load_conversation_messages(
@@ -372,6 +417,7 @@ async def send_message(
         conversation_id=conversation_id,
         sender_type="user",
         sender_label=DEFAULT_USER.sender_label,
+        sender_cs_id=DEFAULT_USER.cs_id,
         content=payload.content,
         status="pending",
     )
@@ -433,7 +479,7 @@ async def _dispatch_direct(*, db: Session, conversation: Conversation, message: 
         dispatch.status = "accepted"
         message.status = "accepted"
         return [dispatch.id]
-    # 这里组装的是发给 claw-team channel 的统一入站 payload，
+    # 这里组装的是发给 clawswarm channel 的统一入站 payload，
     # 它的字段形状必须和 channel 插件侧 routes.py 约定保持一致。
     try:
         response = await channel_client.send_inbound(
@@ -458,7 +504,7 @@ async def _dispatch_direct(*, db: Session, conversation: Conversation, message: 
         if exc.response.status_code == 404:
             raise HTTPException(
                 status_code=502,
-                detail="claw-team plugin is unavailable on the OpenClaw instance",
+                detail="clawswarm plugin is unavailable on the OpenClaw instance",
             ) from exc
         if 500 <= exc.response.status_code < 600:
             raise HTTPException(status_code=502, detail="OpenClaw instance failed to process the request") from exc
@@ -552,22 +598,22 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
         group_member_lines = []
         for member_agent in instance_agents:
             role_label = member_agent.role_name or "未设置角色"
-            ct_label = member_agent.ct_id or "NO-CT-ID"
+            ct_label = member_agent.cs_id or "NO-CS-ID"
             group_member_lines.append(f"- {member_agent.display_name} ({role_label}, {ct_label})")
         group_members_text = "\n".join(group_member_lines)
 
         for agent in instance_agents:
             role_label = agent.role_name or "未设置角色"
-            ct_label = agent.ct_id or "NO-CT-ID"
+            ct_label = agent.cs_id or "NO-CS-ID"
             mention_line = "Mentioned targets: you" if mentions else "Mentioned targets: none"
             contextual_text = "\n".join(
                 [
-                    "[Claw Team Group Context]",
+                    "[ClawSwarm Group Context]",
                     f"Group: {group.name}",
                     f"Your identity: {agent.display_name} ({role_label}, {ct_label})",
                     "Group members:",
                     group_members_text,
-                    f"Current speaker: {DEFAULT_USER.label_with_ct_id}",
+                    f"Current speaker: {DEFAULT_USER.label_with_cs_id}",
                     mention_line,
                     "Instruction:",
                     "- If the current discussion is not in your responsibility scope, stay silent.",
@@ -600,7 +646,7 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
                 if exc.response.status_code == 404:
                     raise HTTPException(
                         status_code=502,
-                        detail="claw-team plugin is unavailable on the OpenClaw instance",
+                        detail="clawswarm plugin is unavailable on the OpenClaw instance",
                     ) from exc
                 if 500 <= exc.response.status_code < 600:
                     raise HTTPException(status_code=502, detail="OpenClaw instance failed to process the request") from exc

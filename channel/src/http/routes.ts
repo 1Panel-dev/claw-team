@@ -2,23 +2,23 @@ import type { Logger } from "../observability/logger.js";
 import type { IdempotencyStore } from "../store/idempotency.js";
 import type { AccountConfig } from "../config.js";
 import type { MessageStateStore } from "../store/messageState.js";
-import type { ClawTeamCallbackClient } from "../callback/client.js";
+import type { ClawSwarmCallbackClient } from "../callback/client.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
 import { handleAdminAgentRoutes } from "./adminAgents.js";
 import { handleCatalogRoutes } from "./catalog.js";
 import { handleInboundRoute } from "./inbound.js";
 
-export function createClawTeamRoutes(params: {
+export function createClawSwarmRoutes(params: {
     channelId: string;
     getAccount: (accountId?: string) => AccountConfig & { accountId: string };
     logger: Logger;
     idempotency: IdempotencyStore;
     messageState: MessageStateStore;
-    clawTeamFactory: (acct: AccountConfig) => ClawTeamCallbackClient;
+    clawSwarmFactory: (acct: AccountConfig) => ClawSwarmCallbackClient;
     openclaw: OpenClawRuntimeAdapter;
     loadHostConfig?: () => unknown;
 }) {
-    const { channelId, getAccount, logger, idempotency, messageState, clawTeamFactory, openclaw, loadHostConfig } = params;
+    const { channelId, getAccount, logger, idempotency, messageState, clawSwarmFactory, openclaw, loadHostConfig } = params;
 
     // 返回给 registerHttpRoute 的 handler。
     return async function handler(req: any, res: any): Promise<boolean> {
@@ -62,7 +62,7 @@ export function createClawTeamRoutes(params: {
                 logger,
                 idempotency,
                 messageState,
-                clawTeamFactory,
+                clawSwarmFactory,
                 openclaw,
             })
         ) {

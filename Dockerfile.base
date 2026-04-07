@@ -1,11 +1,11 @@
 FROM python:3.12-slim
 
-ARG VERSION=python3.12-20260401
+ARG VERSION=python3.12-20260403
 ARG BUILD_DATE
 ARG VCS_REF
 
-LABEL org.opencontainers.image.title="Claw Team Base" \
-      org.opencontainers.image.description="Base runtime image for Claw Team" \
+LABEL org.opencontainers.image.title="ClawSwarm Base" \
+      org.opencontainers.image.description="Base runtime image for ClawSwarm" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}"
@@ -15,7 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     APP_HOST=0.0.0.0 \
     APP_PORT=18080 \
-    WEB_DIST_DIR=/app/web
+    WEB_DIST_DIR=/opt/clawswarm-web
 
 WORKDIR /app/scheduler-server
 
@@ -23,7 +23,7 @@ COPY scheduler-server/requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt \
     && rm -f requirements.txt \
-    && mkdir -p /app/data /app/web
+    && mkdir -p /opt/clawswarm /opt/clawswarm-web
 
 EXPOSE 18080
-VOLUME ["/app/data"]
+VOLUME ["/opt/clawswarm"]

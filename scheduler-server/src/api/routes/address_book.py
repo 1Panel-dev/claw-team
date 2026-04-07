@@ -22,7 +22,7 @@ from src.schemas.address_book import (
     AddressBookInstance,
     AddressBookResponse,
 )
-from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.agent_cs_id import ensure_agent_cs_id
 
 router = APIRouter(prefix="/api", tags=["address-book"])
 
@@ -57,15 +57,15 @@ def get_address_book(db: Session = Depends(db_session)) -> AddressBookResponse:
     grouped_agents: dict[int, list[AddressBookAgent]] = {}
     touched = False
     for agent in agents:
-        if not (agent.ct_id or "").strip():
-            ensure_agent_ct_id(agent)
+        if not (agent.cs_id or "").strip():
+            ensure_agent_cs_id(agent)
             touched = True
         # 这里先按 instance_id 归并 agent，后面实例列表输出时可直接挂到对应实例下面。
         grouped_agents.setdefault(agent.instance_id, []).append(
             AddressBookAgent(
                 id=agent.id,
                 agent_key=agent.agent_key,
-                ct_id=agent.ct_id or "",
+                cs_id=agent.cs_id or "",
                 display_name=agent.display_name,
                 role_name=agent.role_name,
                 enabled=agent.enabled,

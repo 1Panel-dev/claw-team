@@ -11,7 +11,7 @@ describe("updateRealOpenClawAgent", () => {
     let workspaceDir: string;
 
     beforeEach(() => {
-        workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), "claw-team-agent-"));
+        workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), "clawswarm-agent-"));
         configureOpenClawCliRuntime({
             runCommandWithTimeout: vi.fn(async () => ({
                 stdout: JSON.stringify([

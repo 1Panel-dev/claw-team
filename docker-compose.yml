@@ -1,11 +1,11 @@
 services:
-  claw-team:
-    image: 1panel/claw-team:latest
+  clawswarm:
+    image: 1panel/clawswarm:latest
     ports:
       - "18080:18080"
     volumes:
-      - claw-team-data:/app/data
+      - clawswarm-data:/opt/clawswarm
     restart: unless-stopped
 
 volumes:
-  claw-team-data:
+  clawswarm-data:

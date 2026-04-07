@@ -33,7 +33,7 @@ on:
           - production
 
 env:
-  CLAW_TEAM_BASE_IMAGE: ghcr.io/1panel-dev/claw-team-base:python3.12-20260401
+  CLAWSWARM_BASE_IMAGE: ghcr.io/1panel-dev/clawswarm-base:python3.12-20260401
 
 jobs:
   build-and-push-to-dockerhub:
@@ -57,7 +57,7 @@ jobs:
           else
             DOCKER_NAMESPACE="${{ secrets.DOCKERHUB_USERNAME }}"
           fi
-          DOCKER_IMAGE=${DOCKER_NAMESPACE}/claw-team
+          DOCKER_IMAGE=${DOCKER_NAMESPACE}/clawswarm
           DOCKER_PLATFORMS=${{ github.event.inputs.architecture }}
           TAG_NAME=${{ github.event.inputs.dockerImageTag }}
           TAG_NAME_WITH_LATEST=${{ github.event.inputs.dockerImageTagWithLatest }}
@@ -67,7 +67,7 @@ jobs:
             DOCKER_IMAGE_TAGS="--tag ${DOCKER_IMAGE}:${TAG_NAME}"
           fi
           echo "buildx_args=--platform ${DOCKER_PLATFORMS} --memory-swap -1 \
-            --build-arg BASE_IMAGE=${CLAW_TEAM_BASE_IMAGE} \
+            --build-arg BASE_IMAGE=${CLAWSWARM_BASE_IMAGE} \
             --build-arg DOCKER_IMAGE_TAG=${{ github.event.inputs.dockerImageTag }} \
             --build-arg BUILD_AT=$(TZ=Asia/Shanghai date +'%Y-%m-%dT%H:%M') \
             --build-arg GITHUB_COMMIT=$(git rev-parse --short HEAD) \

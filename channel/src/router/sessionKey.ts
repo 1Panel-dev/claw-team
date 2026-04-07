@@ -32,11 +32,11 @@ export function buildSessionKey(params: {
 
     if (params.chatType === "direct") {
         if (params.useDedicatedDirectSession) {
-            // 单独聊天通道沿用 Claw Team 自己的 direct 会话命名。
+            // 单独聊天通道沿用 ClawSwarm 自己的 direct 会话命名。
             return `${CHANNEL_ID}:direct:${conversationId}:agent:${agentId}`;
         }
         // 单聊场景改成对齐 OpenClaw Web UI 自身的原生 session 规则。
-        // 这样从 Claw Team 发给某个 Agent 的单聊，会直接落到
+        // 这样从 ClawSwarm 发给某个 Agent 的单聊，会直接落到
         // OpenClaw 控制台里同一个 Agent 的既有会话里。
         return `agent:${agentId}:${agentId}`;
     }

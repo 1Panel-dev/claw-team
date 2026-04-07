@@ -12,11 +12,11 @@ import { createMockOpenClawRuntimeAdapter, createOpenClawRuntimeAdapter } from "
 import { createLogger } from "../observability/logger.js";
 import { InMemoryMessageStateStore } from "../store/messageState.js";
 import { createIdempotencyStore } from "../store/idempotency.js";
-import type { ClawTeamEvent } from "../callback/client.js";
+import type { ClawSwarmEvent } from "../callback/client.js";
 
 const gateway = resolveGatewayRuntimeConfig(
     AccountConfigSchema.parse({
-        baseUrl: "https://claw-team.example.com",
+        baseUrl: "https://clawswarm.example.com",
         outboundToken: "outbound-token",
         inboundSigningSecret: "1234567890123456",
         gateway: {
@@ -37,9 +37,9 @@ describe("createMockOpenClawRuntimeAdapter", () => {
 
         for await (const chunk of adapter.runAgentTextTurn({
             agentId: "qa",
-            channelId: "claw-team",
+            channelId: "clawswarm",
             accountId: "default",
-            sessionKey: "claw-team:direct:c1:agent:qa",
+            sessionKey: "clawswarm:direct:c1:agent:qa",
             peer: { kind: "direct", id: "c1" },
             from: { userId: "u1" },
             text: "hello",
@@ -74,9 +74,9 @@ describe("createOpenClawRuntimeAdapter", () => {
         try {
             for await (const chunk of adapter.runAgentTextTurn({
                 agentId: "qa",
-                channelId: "claw-team",
+                channelId: "clawswarm",
                 accountId: "default",
-                sessionKey: "claw-team:direct:c1:agent:qa",
+                sessionKey: "clawswarm:direct:c1:agent:qa",
                 peer: { kind: "direct", id: "c1" },
                 from: { userId: "u1" },
                 text: "hello",
@@ -110,9 +110,9 @@ describe("createOpenClawRuntimeAdapter", () => {
         try {
             for await (const chunk of adapter.runAgentTextTurn({
                 agentId: "pm",
-                channelId: "claw-team",
+                channelId: "clawswarm",
                 accountId: "default",
-                sessionKey: "claw-team:direct:c2:agent:pm",
+                sessionKey: "clawswarm:direct:c2:agent:pm",
                 peer: { kind: "direct", id: "c2" },
                 from: { userId: "u2" },
                 text: "status?",
@@ -134,7 +134,7 @@ describe("createOpenClawRuntimeAdapter", () => {
         await expect(async () => {
             for await (const _chunk of adapter.runAgentTextTurn({
                 agentId: "pm",
-                channelId: "claw-team",
+                channelId: "clawswarm",
                 accountId: "default",
                 sessionKey: "agent:pm:pm",
                 peer: { kind: "direct", id: "c2" },
@@ -185,7 +185,7 @@ describe("createOpenClawRuntimeAdapter", () => {
         try {
             for await (const chunk of adapter.runAgentTextTurn({
                 agentId: "pm",
-                channelId: "claw-team",
+                channelId: "clawswarm",
                 accountId: "default",
                 sessionKey: "agent:pm:pm",
                 peer: { kind: "direct", id: "c2" },
@@ -247,7 +247,7 @@ describe("createOpenClawRuntimeAdapter", () => {
         const chunks: string[] = [];
         for await (const chunk of adapter.runAgentTextTurn({
             agentId: "pm",
-            channelId: "claw-team",
+            channelId: "clawswarm",
             accountId: "default",
             sessionKey: "agent:pm:pm",
             peer: { kind: "direct", id: "c2" },
@@ -266,7 +266,7 @@ describe("createOpenClawRuntimeAdapter", () => {
 
     it("does not duplicate reply.final text when an SSE adapter emits an aggregated final chunk", async () => {
         const accountConfig = AccountConfigSchema.parse({
-            baseUrl: "https://claw-team.example.com",
+            baseUrl: "https://clawswarm.example.com",
             outboundToken: "outbound-token",
             inboundSigningSecret: "1234567890123456",
             gateway: {
@@ -280,7 +280,7 @@ describe("createOpenClawRuntimeAdapter", () => {
         const logger = createLogger();
         const messageState = new InMemoryMessageStateStore();
         const idempotency = createIdempotencyStore({ mode: "memory", logger });
-        const events: ClawTeamEvent[] = [];
+        const events: ClawSwarmEvent[] = [];
 
         messageState.create({
             messageId: "msg-test-1234",
@@ -295,14 +295,14 @@ describe("createOpenClawRuntimeAdapter", () => {
         });
 
         await dispatchDirect({
-            channelId: "claw-team",
+            channelId: "clawswarm",
             accountId: "default",
             accountConfig,
             logger,
             idempotency,
             messageState,
-            clawTeam: {
-                async sendEvent(event) {
+            clawSwarm: {
+                async sendEvent(event: ClawSwarmEvent) {
                     events.push(event);
                 },
             },
@@ -335,7 +335,7 @@ describe("createOpenClawRuntimeAdapter", () => {
 
     it("includes rich message parts in reply.final events", async () => {
         const accountConfig = AccountConfigSchema.parse({
-            baseUrl: "https://claw-team.example.com",
+            baseUrl: "https://clawswarm.example.com",
             outboundToken: "outbound-token",
             inboundSigningSecret: "1234567890123456",
             gateway: {
@@ -349,7 +349,7 @@ describe("createOpenClawRuntimeAdapter", () => {
         const logger = createLogger();
         const messageState = new InMemoryMessageStateStore();
         const idempotency = createIdempotencyStore({ mode: "memory", logger });
-        const events: ClawTeamEvent[] = [];
+        const events: ClawSwarmEvent[] = [];
 
         messageState.create({
             messageId: "msg-parts-1234",
@@ -364,14 +364,14 @@ describe("createOpenClawRuntimeAdapter", () => {
         });
 
         await dispatchDirect({
-            channelId: "claw-team",
+            channelId: "clawswarm",
             accountId: "default",
             accountConfig,
             logger,
             idempotency,
             messageState,
-            clawTeam: {
-                async sendEvent(event) {
+            clawSwarm: {
+                async sendEvent(event: ClawSwarmEvent) {
                     events.push(event);
                 },
             },

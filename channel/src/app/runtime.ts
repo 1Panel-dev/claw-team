@@ -4,7 +4,7 @@ import { resolveAccountBootstrapConfig, type AccountConfig } from "../config.js"
 import { createLogger, wrapOpenClawLogger, type Logger } from "../observability/logger.js";
 import { createIdempotencyStore } from "../store/idempotency.js";
 import { InMemoryMessageStateStore, type MessageStateStore } from "../store/messageState.js";
-import { HttpClawTeamCallbackClient, type ClawTeamCallbackClient } from "../callback/client.js";
+import { HttpClawSwarmCallbackClient, type ClawSwarmCallbackClient } from "../callback/client.js";
 import { createOpenClawRuntimeAdapter, type OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
 import { configureOpenClawCliRuntime } from "../openclaw/openclawCli.js";
 
@@ -31,14 +31,14 @@ export function describeRuntimeShape(runtime: unknown) {
     };
 }
 
-export type ClawTeamFactory = (acct: AccountConfig) => ClawTeamCallbackClient;
+export type ClawSwarmFactory = (acct: AccountConfig) => ClawSwarmCallbackClient;
 
 export interface PluginRuntimeServices {
     logger: Logger;
     openclaw: OpenClawRuntimeAdapter;
     idempotency: ReturnType<typeof createIdempotencyStore>;
     messageState: MessageStateStore;
-    clawTeamFactory: ClawTeamFactory;
+    clawSwarmFactory: ClawSwarmFactory;
 }
 
 export function createPluginRuntimeServices(api: OpenClawPluginApi): PluginRuntimeServices {
@@ -61,8 +61,8 @@ export function createPluginRuntimeServices(api: OpenClawPluginApi): PluginRunti
     });
     const messageState = new InMemoryMessageStateStore();
 
-    const clawTeamFactory: ClawTeamFactory = (acct) =>
-        new HttpClawTeamCallbackClient({
+    const clawSwarmFactory: ClawSwarmFactory = (acct) =>
+        new HttpClawSwarmCallbackClient({
             baseUrl: acct.baseUrl,
             token: acct.outboundToken,
             timeoutMs: acct.retry.callbackTimeoutMs,
@@ -74,6 +74,6 @@ export function createPluginRuntimeServices(api: OpenClawPluginApi): PluginRunti
         openclaw,
         idempotency,
         messageState,
-        clawTeamFactory,
+        clawSwarmFactory,
     };
 }

@@ -33,7 +33,7 @@ export async function handleAdminAgentRoutes(params: {
         return true;
     }
 
-    if (pathname === "/claw-team/v1/admin/agents" && method === "POST") {
+    if (pathname === "/clawswarm/v1/admin/agents" && method === "POST") {
         const acct = getAccount(undefined);
         const body = await readVerifiedJsonBody({
             req,

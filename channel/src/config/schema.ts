@@ -27,7 +27,7 @@ export const AccountConfigSchema = z
         // 允许按账号粒度禁用接入，而不是整个插件一起下线。
         enabled: z.boolean().default(true),
 
-        // Claw Team 后端回调地址与鉴权信息。
+        // ClawSwarm 后端回调地址与鉴权信息。
         baseUrl: z.string().min(1),
         outboundToken: z.string().min(8),
         inboundSigningSecret: z.string().min(16),
@@ -83,7 +83,7 @@ export const AccountConfigSchema = z
                 baseDelayMs: z.number().int().min(50).max(60 * 1000).default(500),
                 maxDelayMs: z.number().int().min(100).max(10 * 60 * 1000).default(60 * 1000),
                 jitterRatio: z.number().min(0).max(1).default(0.2),
-                deadLetterFile: z.string().min(1).default("./claw-team.dlq.jsonl"),
+                deadLetterFile: z.string().min(1).default("./clawswarm.dlq.jsonl"),
                 callbackTimeoutMs: z.number().int().min(100).max(60 * 1000).default(8000),
             })
             .default({}),

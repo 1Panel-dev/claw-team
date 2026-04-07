@@ -1,25 +1,25 @@
 # Examples
 
-## Example 1: Ask Another Agent For Domain Confirmation
+## Example 1: Ask Another Agent for Domain Confirmation
 
 Target:
 
 ```text
-CTA-0010
+CSA-0010
 ```
 
 Channel action:
 
 ```text
-Use Claw Team Channel to send a message to CTA-0010.
+Use ClawSwarm Channel to send a message to CSA-0010.
 ```
 
 Equivalent phrasing:
 
 ```text
-Use CT Channel to send a message to CTA-0010.
-Use claw-team to send a message to CTA-0010.
-Start a CT Call to CTA-0010.
+Use CS Channel to send a message to CSA-0010.
+Use clawswarm to send a message to CSA-0010.
+Start a CS Call to CSA-0010.
 ```
 
 Text:
@@ -27,33 +27,33 @@ Text:
 ```json
 {
   "kind": "agent_dialogue.start",
-  "sourceCtId": "CTA-0001",
-  "targetCtId": "CTA-0010",
+  "sourceCsId": "CSA-0001",
+  "targetCsId": "CSA-0010",
   "topic": "Confirm login module API contract",
   "message": "I am working on the login module and need you to confirm the request fields, response structure, and error codes."
 }
 ```
 
-## Example 2: Ask For A Narrow Execution Result
+## Example 2: Ask for a Narrow Execution Result
 
 Target:
 
 ```text
-CTA-0009
+CSA-0009
 ```
 
 Channel action:
 
 ```text
-Use Claw Team Channel to send a message to CTA-0009.
+Use ClawSwarm Channel to send a message to CSA-0009.
 ```
 
 Equivalent phrasing:
 
 ```text
-Use CT Channel to send a message to CTA-0009.
-Use claw-team to send a message to CTA-0009.
-Start a CT Call to CTA-0009.
+Use CS Channel to send a message to CSA-0009.
+Use clawswarm to send a message to CSA-0009.
+Start a CS Call to CSA-0009.
 ```
 
 Text:
@@ -61,33 +61,33 @@ Text:
 ```json
 {
   "kind": "agent_dialogue.start",
-  "sourceCtId": "CTA-0006",
-  "targetCtId": "CTA-0009",
+  "sourceCsId": "CSA-0006",
+  "targetCsId": "CSA-0009",
   "topic": "Need test coverage suggestion",
   "message": "I have implemented the login interaction changes. Please propose the minimum high-value test cases I should add before I report completion."
 }
 ```
 
-## Example 3: Notify The Default User
+## Example 3: Notify the Default User
 
 Target:
 
 ```text
-CTU-0001
+CSU-0001
 ```
 
 Channel action:
 
 ```text
-Use Claw Team Channel to send a message to CTU-0001.
+Use ClawSwarm Channel to send a message to CSU-0001.
 ```
 
 Equivalent phrasing:
 
 ```text
-Use CT Channel to send a message to CTU-0001.
-Use claw-team to send a message to CTU-0001.
-Start a CT Call to CTU-0001.
+Use CS Channel to send a message to CSU-0001.
+Use clawswarm to send a message to CSU-0001.
+Start a CS Call to CSU-0001.
 ```
 
 Text:
@@ -95,22 +95,22 @@ Text:
 ```json
 {
   "kind": "agent_dialogue.start",
-  "sourceCtId": "CTA-0001",
-  "targetCtId": "CTU-0001",
+  "sourceCsId": "CSA-0001",
+  "targetCsId": "CSU-0001",
   "topic": "Request acceptance",
   "message": "The current delivery is ready. Please review it and confirm whether it passes acceptance."
 }
 ```
 
-## Example 4: What Not To Send
+## Example 4: What Not to Send
 
 Bad:
 
 ```json
 {
   "kind": "agent_dialogue.start",
-  "sourceCtId": "CTA-0001",
-  "targetCtId": "CTA-0009",
+  "sourceCsId": "CSA-0001",
+  "targetCsId": "CSA-0009",
   "topic": "Help",
   "message": "Please help me."
 }

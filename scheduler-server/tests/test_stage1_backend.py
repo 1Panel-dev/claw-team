@@ -74,7 +74,7 @@ class Stage1BackendTests(unittest.TestCase):
         self.client = TestClient(self.app)
         with self.SessionLocal() as db:
             user = ensure_default_user(db)
-            self.client.cookies.set("claw_team_session", build_session_cookie_value(user))
+            self.client.cookies.set("clawswarm_session", build_session_cookie_value(user))
 
     def tearDown(self) -> None:
         self.app.dependency_overrides.clear()
@@ -699,7 +699,7 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(stop_response.status_code, 200)
         self.assertEqual(stop_response.json()["status"], "stopped")
 
-    def test_send_text_can_start_agent_dialogue_by_ct_ids(self) -> None:
+    def test_send_text_can_start_agent_dialogue_by_cs_ids(self) -> None:
         with self.SessionLocal() as db:
             instance_a = OpenClawInstance(
                 name="OpenClaw A",
@@ -723,7 +723,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance_a.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -731,7 +731,7 @@ class Stage1BackendTests(unittest.TestCase):
             target_agent = AgentProfile(
                 instance_id=instance_b.id,
                 agent_key="testbot2",
-                ct_id="CTA-0010",
+                cs_id="CSA-0010",
                 display_name="TestBot2",
                 role_name="执行工程师",
                 enabled=True,
@@ -741,12 +741,12 @@ class Stage1BackendTests(unittest.TestCase):
 
         with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-send-text"})):
             response = self.client.post(
-                "/api/v1/claw-team/send-text",
+                "/api/v1/clawswarm/send-text",
                 headers={"authorization": "Bearer callback-token-a"},
                 json={
                     "kind": "agent_dialogue.start",
-                    "sourceCtId": "CTA-0001",
-                    "targetCtId": "CTA-0010",
+                    "sourceCsId": "CSA-0001",
+                    "targetCsId": "CSA-0010",
                     "topic": "讨论登录接口",
                     "message": "我需要你确认登录接口字段和返回结构。",
                     "windowSeconds": 300,
@@ -797,7 +797,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance_a.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -805,7 +805,7 @@ class Stage1BackendTests(unittest.TestCase):
             target_agent = AgentProfile(
                 instance_id=instance_b.id,
                 agent_key="testbot2",
-                ct_id="CTA-0009",
+                cs_id="CSA-0009",
                 display_name="TestBot2",
                 role_name="执行工程师",
                 enabled=True,
@@ -815,8 +815,8 @@ class Stage1BackendTests(unittest.TestCase):
 
         request_payload = {
             "kind": "agent_dialogue.start",
-            "sourceCtId": "CTA-0001",
-            "targetCtId": "CTA-0009",
+            "sourceCsId": "CSA-0001",
+            "targetCsId": "CSA-0009",
             "topic": "重复发送测试",
             "message": "同样内容重复发送两次。",
             "windowSeconds": 300,
@@ -826,12 +826,12 @@ class Stage1BackendTests(unittest.TestCase):
 
         with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-send-text"})):
             first = self.client.post(
-                "/api/v1/claw-team/send-text",
+                "/api/v1/clawswarm/send-text",
                 headers={"authorization": "Bearer callback-token-a"},
                 json=request_payload,
             )
             second = self.client.post(
-                "/api/v1/claw-team/send-text",
+                "/api/v1/clawswarm/send-text",
                 headers={"authorization": "Bearer callback-token-a"},
                 json=request_payload,
             )
@@ -870,7 +870,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -881,12 +881,12 @@ class Stage1BackendTests(unittest.TestCase):
             db.commit()
 
         response = self.client.post(
-            "/api/v1/claw-team/send-text",
+            "/api/v1/clawswarm/send-text",
             headers={"authorization": "Bearer callback-token-a"},
             json={
                 "kind": "agent_dialogue.start",
-                "sourceCtId": "CTA-0001",
-                "targetCtId": "CTU-0001",
+                "sourceCsId": "CSA-0001",
+                "targetCsId": "CSU-0001",
                 "topic": "请求确认",
                 "message": "请查看当前交付物并确认。",
                 "windowSeconds": 300,
@@ -936,7 +936,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -955,8 +955,8 @@ class Stage1BackendTests(unittest.TestCase):
 
         request_payload = {
             "kind": "agent_dialogue.start",
-            "sourceCtId": "CTA-0001",
-            "targetCtId": "CTU-0001",
+            "sourceCsId": "CSA-0001",
+            "targetCsId": "CSU-0001",
             "topic": "请求确认",
             "message": "请查看当前交付物并确认。",
             "windowSeconds": 300,
@@ -965,12 +965,12 @@ class Stage1BackendTests(unittest.TestCase):
         }
 
         first = self.client.post(
-            "/api/v1/claw-team/send-text",
+            "/api/v1/clawswarm/send-text",
             headers={"authorization": "Bearer callback-token-a"},
             json=request_payload,
         )
         second = self.client.post(
-            "/api/v1/claw-team/send-text",
+            "/api/v1/clawswarm/send-text",
             headers={"authorization": "Bearer callback-token-a"},
             json=request_payload,
         )
@@ -1399,7 +1399,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="liaotian",
-                ct_id="CTA-0006",
+                cs_id="CSA-0006",
                 display_name="liaotian",
                 role_name="聊天专家",
                 enabled=True,
@@ -1407,7 +1407,7 @@ class Stage1BackendTests(unittest.TestCase):
             target_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="testbot",
-                ct_id="CTA-0009",
+                cs_id="CSA-0009",
                 display_name="TestBot",
                 role_name="测试专家",
                 enabled=True,
@@ -1454,11 +1454,11 @@ class Stage1BackendTests(unittest.TestCase):
             mocked_send.assert_awaited_once()
             payload = mocked_send.await_args.kwargs["payload"]
             self.assertEqual(payload["directAgentId"], "testbot")
-            self.assertIn("[Claw Team Agent Dialogue]", payload["text"])
+            self.assertIn("[ClawSwarm Agent Dialogue]", payload["text"])
             self.assertIn("Dialogue ID: AD-", payload["text"])
-            self.assertIn("Your identity: TestBot (CTA-0009)", payload["text"])
-            self.assertIn("Current partner: liaotian (CTA-0006)", payload["text"])
-            self.assertIn("Human guidance from User (CTU-0001):", payload["text"])
+            self.assertIn("Your identity: TestBot (CSA-0009)", payload["text"])
+            self.assertIn("Current partner: liaotian (CSA-0006)", payload["text"])
+            self.assertIn("Human guidance from User (CSU-0001):", payload["text"])
             self.assertIn("继续接龙", payload["text"])
 
     def test_resume_agent_dialogue_dispatches_latest_pending_agent_message(self) -> None:
@@ -2009,7 +2009,7 @@ class Stage1BackendTests(unittest.TestCase):
             conversation_id = conversation.id
 
         response = self.client.post(
-            "/api/v1/claw-team/webchat-mirror",
+            "/api/v1/clawswarm/webchat-mirror",
             headers={"Authorization": "Bearer callback-token-123"},
             json={
                 "channelId": "webchat",
@@ -2080,8 +2080,8 @@ class Stage1BackendTests(unittest.TestCase):
         }
         headers = {"Authorization": "Bearer callback-token-123"}
 
-        first = self.client.post("/api/v1/claw-team/webchat-mirror", headers=headers, json=request_payload)
-        second = self.client.post("/api/v1/claw-team/webchat-mirror", headers=headers, json=request_payload)
+        first = self.client.post("/api/v1/clawswarm/webchat-mirror", headers=headers, json=request_payload)
+        second = self.client.post("/api/v1/clawswarm/webchat-mirror", headers=headers, json=request_payload)
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
 
@@ -2130,7 +2130,7 @@ class Stage1BackendTests(unittest.TestCase):
             conversation_id = conversation.id
 
         response = self.client.post(
-            "/api/v1/claw-team/webchat-mirror",
+            "/api/v1/clawswarm/webchat-mirror",
             headers={"Authorization": "Bearer callback-token-123"},
             json={
                 "channelId": "webchat",
@@ -2147,7 +2147,7 @@ class Stage1BackendTests(unittest.TestCase):
         messages_payload = messages_response.json()
         mirrored = messages_payload["messages"][0]
         self.assertEqual(mirrored["sender_type"], "user")
-        self.assertEqual(mirrored["sender_label"], "User (CTU-0001)")
+        self.assertEqual(mirrored["sender_label"], "User (CSU-0001)")
         self.assertEqual(mirrored["source"], "webchat")
         self.assertEqual(mirrored["content"], "大兴天气")
 
@@ -2189,7 +2189,7 @@ class Stage1BackendTests(unittest.TestCase):
         headers = {"Authorization": "Bearer callback-token-123"}
 
         first = self.client.post(
-            "/api/v1/claw-team/webchat-mirror",
+            "/api/v1/clawswarm/webchat-mirror",
             headers=headers,
             json={
                 "channelId": "webchat",
@@ -2201,7 +2201,7 @@ class Stage1BackendTests(unittest.TestCase):
             },
         )
         second = self.client.post(
-            "/api/v1/claw-team/webchat-mirror",
+            "/api/v1/clawswarm/webchat-mirror",
             headers=headers,
             json={
                 "channelId": "webchat",
@@ -2285,14 +2285,14 @@ class Stage1BackendTests(unittest.TestCase):
             "correlation": {
                 "messageId": "msg_user_001",
                 "agentId": "main",
-                "sessionKey": "claw-team:test",
+                "sessionKey": "clawswarm:test",
             },
             "payload": {"text": "这是最终回复"},
         }
         headers = {"Authorization": "Bearer callback-token-123"}
 
-        first = self.client.post("/api/v1/claw-team/events", json=body, headers=headers)
-        second = self.client.post("/api/v1/claw-team/events", json=body, headers=headers)
+        first = self.client.post("/api/v1/clawswarm/events", json=body, headers=headers)
+        second = self.client.post("/api/v1/clawswarm/events", json=body, headers=headers)
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
@@ -2307,7 +2307,7 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertEqual(len(agent_messages), 1)
             self.assertEqual(agent_messages[0].content, "这是最终回复")
             self.assertEqual(updated_dispatch.status, "completed")
-            self.assertEqual(updated_dispatch.session_key, "claw-team:test")
+            self.assertEqual(updated_dispatch.session_key, "clawswarm:test")
             self.assertEqual(updated_user_message.status, "completed")
 
     def test_send_message_uses_local_agent_mock_when_enabled(self) -> None:
@@ -2387,7 +2387,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="项目经理",
                 role_name="项目经理",
                 enabled=True,
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
             )
             engineer = AgentProfile(
                 instance_id=instance.id,
@@ -2395,7 +2395,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="执行工程师",
                 role_name="执行工程师",
                 enabled=True,
-                ct_id="CTA-0002",
+                cs_id="CSA-0002",
             )
             db.add_all([pm, engineer])
             db.flush()
@@ -2435,14 +2435,14 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(first_payload["targetAgentIds"], ["pm"])
         self.assertEqual(second_payload["targetAgentIds"], ["execution-engineer"])
 
-        self.assertIn("[Claw Team Group Context]", first_payload["text"])
+        self.assertIn("[ClawSwarm Group Context]", first_payload["text"])
         self.assertIn("Group: 小项目群", first_payload["text"])
-        self.assertIn("Your identity: 项目经理 (项目经理, CTA-0001)", first_payload["text"])
-        self.assertIn("执行工程师 (执行工程师, CTA-0002)", first_payload["text"])
-        self.assertIn("Current speaker: User (CTU-0001)", first_payload["text"])
+        self.assertIn("Your identity: 项目经理 (项目经理, CSA-0001)", first_payload["text"])
+        self.assertIn("执行工程师 (执行工程师, CSA-0002)", first_payload["text"])
+        self.assertIn("Current speaker: User (CSU-0001)", first_payload["text"])
 
-        self.assertIn("Your identity: 执行工程师 (执行工程师, CTA-0002)", second_payload["text"])
-        self.assertIn("项目经理 (项目经理, CTA-0001)", second_payload["text"])
+        self.assertIn("Your identity: 执行工程师 (执行工程师, CSA-0002)", second_payload["text"])
+        self.assertIn("项目经理 (项目经理, CSA-0001)", second_payload["text"])
         self.assertIn("Instruction:", second_payload["text"])
 
     def test_delete_group_removes_group_conversation_history(self) -> None:
@@ -2464,7 +2464,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="项目经理",
                 role_name="项目经理",
                 enabled=True,
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
             )
             db.add(agent)
             db.flush()
@@ -2542,7 +2542,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="执行工程师",
                 role_name="执行工程师",
                 enabled=True,
-                ct_id="CTA-0009",
+                cs_id="CSA-0009",
             )
             kept_agent = AgentProfile(
                 instance_id=instance.id,
@@ -2550,7 +2550,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="项目经理",
                 role_name="项目经理",
                 enabled=True,
-                ct_id="CTA-0010",
+                cs_id="CSA-0010",
             )
             db.add_all([removed_agent, kept_agent])
             db.flush()
@@ -2700,7 +2700,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="TestBot2",
                 role_name="测试 Bot",
                 enabled=True,
-                ct_id="CTA-0010",
+                cs_id="CSA-0010",
             )
             kept_agent = AgentProfile(
                 instance_id=instance.id,
@@ -2708,7 +2708,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="main",
                 role_name="助手",
                 enabled=True,
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
             )
             db.add_all([removed_agent, kept_agent])
             db.flush()
@@ -2853,7 +2853,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="Delete Me",
                 role_name="assistant",
                 enabled=True,
-                ct_id="CTA-DEL-001",
+                cs_id="CSA-DEL-001",
             )
             peer_agent = AgentProfile(
                 instance_id=peer_instance.id,
@@ -2861,7 +2861,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="Peer Agent",
                 role_name="assistant",
                 enabled=True,
-                ct_id="CTA-PEER-001",
+                cs_id="CSA-PEER-001",
             )
             db.add_all([deleted_agent, peer_agent])
             db.flush()
@@ -3172,7 +3172,7 @@ class Stage1BackendTests(unittest.TestCase):
             db.commit()
             conversation_id = conversation.id
 
-        request = httpx.Request("POST", "https://example.com/claw-team/v1/inbound")
+        request = httpx.Request("POST", "https://example.com/clawswarm/v1/inbound")
         response = httpx.Response(status_code=401, request=request)
         with patch(
             "src.integrations.channel_client.httpx.AsyncClient.request",
@@ -3238,7 +3238,7 @@ class Stage1BackendTests(unittest.TestCase):
 
     def test_settings_default_database_url_uses_persistent_app_data_path(self) -> None:
         config_module = importlib.import_module("src.core.config")
-        self.assertEqual(config_module.DEFAULT_CONTAINER_DATABASE_URL, "sqlite:////app/data/app.db")
+        self.assertEqual(config_module.DEFAULT_CONTAINER_DATABASE_URL, "sqlite:////opt/clawswarm/app.db")
         self.assertEqual(config_module.DEFAULT_LOCAL_DATABASE_URL, "sqlite:///./data/app.db")
 
     def test_app_serves_built_web_client_when_dist_directory_exists(self) -> None:
@@ -3246,7 +3246,7 @@ class Stage1BackendTests(unittest.TestCase):
         assets_dir = web_dist / "assets"
         assets_dir.mkdir(parents=True)
         (web_dist / "index.html").write_text(
-            "<!doctype html><html><body><div id='app'>claw-team</div></body></html>",
+            "<!doctype html><html><body><div id='app'>clawswarm</div></body></html>",
             encoding="utf-8",
         )
         (assets_dir / "app.js").write_text("console.log('ok')", encoding="utf-8")
@@ -3261,9 +3261,9 @@ class Stage1BackendTests(unittest.TestCase):
         api_response = client.get("/api/health")
 
         self.assertEqual(root_response.status_code, 200)
-        self.assertIn("claw-team", root_response.text)
+        self.assertIn("clawswarm", root_response.text)
         self.assertEqual(route_response.status_code, 200)
-        self.assertIn("claw-team", route_response.text)
+        self.assertIn("clawswarm", route_response.text)
         self.assertEqual(asset_response.status_code, 200)
         self.assertIn("console.log", asset_response.text)
         self.assertEqual(api_response.status_code, 200)
@@ -3418,7 +3418,7 @@ class Stage1BackendTests(unittest.TestCase):
             "correlation": {
                 "messageId": "msg_user_parts_001",
                 "agentId": "main",
-                "sessionKey": "claw-team:test-parts",
+                "sessionKey": "clawswarm:test-parts",
             },
             "payload": {
                 "text": "巡检摘要如下",
@@ -3436,7 +3436,7 @@ class Stage1BackendTests(unittest.TestCase):
         }
         headers = {"Authorization": "Bearer callback-token-123"}
 
-        response = self.client.post("/api/v1/claw-team/events", json=body, headers=headers)
+        response = self.client.post("/api/v1/clawswarm/events", json=body, headers=headers)
         self.assertEqual(response.status_code, 200)
 
         messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
@@ -3516,7 +3516,7 @@ class Stage1BackendTests(unittest.TestCase):
         headers = {"Authorization": "Bearer callback-token-123"}
 
         first_chunk = self.client.post(
-            "/api/v1/claw-team/events",
+            "/api/v1/clawswarm/events",
             json={
                 "eventId": "evt_chunk_001",
                 "eventType": "reply.chunk",
@@ -3532,7 +3532,7 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(first_chunk.status_code, 200)
 
         second_chunk = self.client.post(
-            "/api/v1/claw-team/events",
+            "/api/v1/clawswarm/events",
             json={
                 "eventId": "evt_chunk_002",
                 "eventType": "reply.chunk",
@@ -3556,7 +3556,7 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(interim_agent_messages[0]["content"], "第一段第二段")
 
         final_response = self.client.post(
-            "/api/v1/claw-team/events",
+            "/api/v1/clawswarm/events",
             json={
                 "eventId": "evt_final_stream_001",
                 "eventType": "reply.final",
@@ -3634,7 +3634,7 @@ class Stage1BackendTests(unittest.TestCase):
             conversation_id = conversation.id
 
         response = self.client.post(
-            "/api/v1/claw-team/events",
+            "/api/v1/clawswarm/events",
             json={
                 "eventId": "evt_empty_final_001",
                 "eventType": "reply.final",
@@ -3711,7 +3711,7 @@ class Stage1BackendTests(unittest.TestCase):
 
         headers = {"Authorization": "Bearer callback-token-123"}
         chunk_response = self.client.post(
-            "/api/v1/claw-team/events",
+            "/api/v1/clawswarm/events",
             json={
                 "eventId": "evt_empty_final_stream_chunk_001",
                 "eventType": "reply.chunk",
@@ -3727,7 +3727,7 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(chunk_response.status_code, 200)
 
         final_response = self.client.post(
-            "/api/v1/claw-team/events",
+            "/api/v1/clawswarm/events",
             json={
                 "eventId": "evt_empty_final_stream_final_001",
                 "eventType": "reply.final",

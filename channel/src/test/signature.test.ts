@@ -12,11 +12,11 @@ describe("signature helpers", () => {
             timestampMs: 1000,
             nonce: "nonce-1",
             method: "POST",
-            path: "/claw-team/v1/inbound",
+            path: "/clawswarm/v1/inbound",
             bodySha256Hex: sha256Hex(Buffer.from("{\"ok\":true}")),
         });
 
-        expect(canonical).toContain("/claw-team/v1/inbound");
+        expect(canonical).toContain("/clawswarm/v1/inbound");
         expect(hmacSha256Hex("secret-1234567890", canonical)).toHaveLength(64);
     });
 });

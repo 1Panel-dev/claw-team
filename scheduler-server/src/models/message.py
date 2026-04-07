@@ -20,5 +20,6 @@ class Message(Base, TimestampMixin):
     conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), index=True)
     sender_type: Mapped[str] = mapped_column(String(20))
     sender_label: Mapped[str] = mapped_column(String(120))
+    sender_cs_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     content: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="pending")

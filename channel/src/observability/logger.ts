@@ -44,7 +44,7 @@ export function createLogger(opts?: { base?: LogFields; sink?: Sink }): Logger {
         const rec = {
             ts: nowIso(),
             level,
-            subsystem: "plugin/claw-team",
+            subsystem: "plugin/clawswarm",
             msg,
             ...base,
             ...fields,

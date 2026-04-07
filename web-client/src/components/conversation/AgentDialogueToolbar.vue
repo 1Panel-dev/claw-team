@@ -5,9 +5,9 @@
         <span>
           {{ t("conversation.agentDialoguePair", {
               source: dialogue.source_agent_display_name,
-              sourceCtId: dialogue.source_agent_ct_id,
+              sourceCsId: dialogue.source_agent_cs_id,
               target: dialogue.target_agent_display_name,
-              targetCtId: dialogue.target_agent_ct_id,
+              targetCsId: dialogue.target_agent_cs_id,
           }) }}
         </span>
       </div>
@@ -99,12 +99,12 @@ const softLimitTriggered = computed(() => {
 });
 
 const currentPartnerLabel = computed(() => {
-    if (!props.dialogue.next_agent_display_name || !props.dialogue.next_agent_ct_id) {
+    if (!props.dialogue.next_agent_display_name || !props.dialogue.next_agent_cs_id) {
         return t("conversation.agentDialogueWaiting");
     }
     return t("conversation.agentDialogueCurrentPartner", {
         name: props.dialogue.next_agent_display_name,
-        ctId: props.dialogue.next_agent_ct_id,
+        csId: props.dialogue.next_agent_cs_id,
     });
 });
 </script>

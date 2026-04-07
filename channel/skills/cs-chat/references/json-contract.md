@@ -17,8 +17,8 @@ No other kind is supported yet.
 ```json
 {
   "kind": "agent_dialogue.start",
-  "sourceCtId": "CTA-0001",
-  "targetCtId": "CTA-0010",
+  "sourceCsId": "CSA-0001",
+  "targetCsId": "CSA-0010",
   "topic": "Discuss login module API contract",
   "message": "I need you to confirm the field list, error codes, and response structure."
 }
@@ -26,11 +26,11 @@ No other kind is supported yet.
 
 - `kind`
   - must be `agent_dialogue.start`
-- `sourceCtId`
-  - must be the CT ID of the current agent
+- `sourceCsId`
+  - must be the CS ID of the current agent
   - is required
-- `targetCtId`
-  - must be the target CT ID
+- `targetCsId`
+  - must be the target CS ID
   - should match `to`
 - `topic`
   - short, specific title
@@ -41,14 +41,14 @@ No other kind is supported yet.
 
 The target should appear in both places:
 
-- `targetCtId` inside the JSON body
-- `to = <target CT ID>`
+- `targetCsId` inside the JSON body
+- `to = <target CS ID>`
 
 Recommended standard:
 
-- use plain CT IDs like `CTA-0009` or `CTU-0001`
-- treat the target as one unified `targetCtId`
-- keep `targetCtId` and `to` consistent
+- use plain CS IDs like `CSA-0009` or `CSU-0001`
+- treat the target as one unified `targetCsId`
+- keep `targetCsId` and `to` consistent
 
 ## Optional Backend Defaults
 

@@ -23,7 +23,7 @@ class OpenClawInstance(Base, TimestampMixin):
     # 稳定唯一标识只给系统自己用，展示名允许重复。
     instance_key: Mapped[str] = mapped_column(String(36), unique=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(String(120))
-    # 例如 https://172.16.200.119:18789 这样的 claw-team channel 基础地址。
+    # 例如 https://172.16.200.119:18789 这样的 clawswarm channel 基础地址。
     channel_base_url: Mapped[str] = mapped_column(String(500))
     # 对应 channel 里的账号标识，当前默认一般都是 default。
     channel_account_id: Mapped[str] = mapped_column(String(120), default="default")

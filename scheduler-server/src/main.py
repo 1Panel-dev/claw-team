@@ -44,7 +44,7 @@ def _configure_web_client_routes(app: FastAPI) -> None:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Claw Team Scheduler Server", version="0.1.0")
+    app = FastAPI(title="ClawSwarm Scheduler Server", version="0.1.0")
     app.state.session_local = SessionLocal
 
     # 第一阶段先直接用 create_all 建表，后续再切换到 Alembic 管理迁移。
@@ -74,7 +74,7 @@ def create_app() -> FastAPI:
         path = request.url.path
         if not path.startswith("/api"):
             return await call_next(request)
-        if path == "/api/health" or path.startswith("/api/auth") or path.startswith("/api/v1/claw-team/"):
+        if path == "/api/health" or path.startswith("/api/auth") or path.startswith("/api/v1/clawswarm/"):
             return await call_next(request)
 
         with request.app.state.session_local() as db:

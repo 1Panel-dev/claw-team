@@ -47,7 +47,10 @@
               </el-tooltip>
             </span>
           </template>
-          <el-input v-model="form.gateway_token" :placeholder="t('openclaw.gatewayTokenPlaceholder')" />
+          <el-input
+            v-model="form.gateway_token"
+            :placeholder="t('openclaw.gatewayTokenPlaceholder')"
+          />
         </el-form-item>
 
         <el-form-item>
@@ -151,6 +154,11 @@ watch(
     () => props.visible,
     (visible) => {
         if (!visible) {
+            form.name = "";
+            form.channel_base_url = "";
+            form.channel_account_id = "default";
+            form.include_intermediate_messages = true;
+            form.gateway_token = "";
             return;
         }
         if (mode.value === "edit" && props.initialValue) {
@@ -158,14 +166,8 @@ watch(
             form.channel_base_url = props.initialValue.channel_base_url;
             form.channel_account_id = props.initialValue.channel_account_id;
             form.gateway_token = "";
-            form.include_intermediate_messages = true;
-            return;
         }
-        form.name = "";
-        form.channel_base_url = "";
-        form.channel_account_id = "default";
         form.gateway_token = "";
-        form.include_intermediate_messages = true;
     },
 );
 
@@ -209,10 +211,10 @@ function buildOpenClawConfig(maskSecrets: boolean) {
     const fullConfig = JSON.stringify({
         plugins: {
             allow: [
-                "claw-team",
+                "clawswarm",
             ],
             entries: {
-                "claw-team": {
+                "clawswarm": {
                     enabled: true,
                     config: {},
                 },
@@ -221,17 +223,17 @@ function buildOpenClawConfig(maskSecrets: boolean) {
         skills: {
             load: {
                 extraDirs: [
-                    "/home/node/.openclaw/extensions/claw-team/skills",
+                    "/home/node/.openclaw/extensions/clawswarm/skills",
                 ],
             },
             entries: {
-                "ct-chat": {
+                "cs-chat": {
                     enabled: true,
                 },
             },
         },
         channels: {
-            "claw-team": {
+            "clawswarm": {
                 accounts: {
                     default: {
                         enabled: true,
@@ -329,8 +331,10 @@ async function copyOpenClawConfig() {
                 throw new Error(t("openclaw.copyFailed"));
             }
         }
-        form.gateway_token = "";
         ElMessage.success(t("openclaw.copySuccess"));
+        window.setTimeout(() => {
+            form.gateway_token = "";
+        }, 1000);
     } catch (error) {
         ElMessage.error(error instanceof Error ? error.message : String(error));
     }

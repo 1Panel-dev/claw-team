@@ -18,7 +18,7 @@ export async function handleAdminAgentProfileRoute(params: {
     const { pathname, method, req, res, getAccount, idempotency, loadHostConfig } = params;
     const hostConfig = loadHostConfig?.() as OpenClawAgentWorkspaceConfig | undefined;
 
-    if (!pathname.startsWith("/claw-team/v1/admin/agents/") || !pathname.endsWith("/profile")) {
+    if (!pathname.startsWith("/clawswarm/v1/admin/agents/") || !pathname.endsWith("/profile")) {
         return false;
     }
 

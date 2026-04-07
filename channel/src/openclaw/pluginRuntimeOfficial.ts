@@ -8,7 +8,7 @@ import {
 } from "./pluginRuntimeShared.js";
 
 // 标准单聊主会话优先走官方 direct-dm helper。
-// 但 Claw Team 的 agent/session 已由上层明确选定，所以这里会固定 route 结果，
+// 但 ClawSwarm 的 agent/session 已由上层明确选定，所以这里会固定 route 结果，
 // 不再让宿主侧静态 routing 抢回路由权。
 export async function runViaOfficialDirectDmHelper(params: {
     api: RuntimeLike;
@@ -49,7 +49,7 @@ export async function runViaOfficialDirectDmHelper(params: {
         runtime: {
             channel: {
                 routing: {
-                    // Claw Team 已经明确选定了目标 agent 和 session。
+                    // ClawSwarm 已经明确选定了目标 agent 和 session。
                     // 这里继续复用官方 direct-DM 主链路，但不再让宿主侧
                     // 的静态 channel routing 覆盖这个显式选择。
                     resolveAgentRoute: () => ({
@@ -72,7 +72,7 @@ export async function runViaOfficialDirectDmHelper(params: {
             },
         },
         channel: params.turn.channelId,
-        channelLabel: "Claw Team",
+        channelLabel: "ClawSwarm",
         accountId: params.turn.accountId,
         peer: { kind: "direct", id: params.turn.peer.id },
         senderId: params.turn.from.userId,

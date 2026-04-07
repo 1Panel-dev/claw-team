@@ -22,13 +22,13 @@ from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
-from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.default_user import get_default_user_identity
 
 IN_FLIGHT_DISPATCH_STATUSES = ("pending", "accepted", "streaming")
 AGENT_DIALOGUE_WARNING_TEXT = "短时间内对话次数较多，请聚焦当前目标，避免无效往返。"
 AGENT_DIALOGUE_CHANNEL_PREFIX = "agent-dialogue"
-AGENT_DIALOGUE_CONTEXT_HEADER = "[Claw Team Agent Dialogue]"
+AGENT_DIALOGUE_CONTEXT_HEADER = "[ClawSwarm Agent Dialogue]"
 DEFAULT_USER = get_default_user_identity()
 
 
@@ -49,7 +49,7 @@ async def dispatch_agent_dialogue_opening_turn(*, db: Session, dialogue: AgentDi
         conversation=conversation,
         message=opening_message,
         recipient_agent=source_agent,
-        sender_label=DEFAULT_USER.label_with_ct_id,
+        sender_label=DEFAULT_USER.label_with_cs_id,
         sender_user_id=DEFAULT_USER.internal_id,
         dispatch_mode="agent_dialogue_opening",
     )
@@ -94,7 +94,7 @@ async def continue_agent_dialogue_after_reply(
                 conversation=conversation,
                 message=pending_user_message,
                 recipient_agent=next_agent,
-                sender_label=DEFAULT_USER.label_with_ct_id,
+                sender_label=DEFAULT_USER.label_with_cs_id,
                 sender_user_id=DEFAULT_USER.internal_id,
                 dispatch_mode="agent_dialogue_intervention",
             )
@@ -227,21 +227,21 @@ def _build_agent_dialogue_context_text(
 
     这里的目标不是做复杂协议，而是解决两个实际问题：
     1. Agent 必须知道自己当前是在和谁对话，而不是把收到的内容误判成新的普通用户请求。
-    2. Agent 必须知道这条消息属于哪条持续中的 Claw Team 对话，避免“继续接龙”这类指令丢上下文。
+    2. Agent 必须知道这条消息属于哪条持续中的 ClawSwarm 对话，避免“继续接龙”这类指令丢上下文。
     """
     source_agent = db.get(AgentProfile, dialogue.source_agent_id)
     target_agent = db.get(AgentProfile, dialogue.target_agent_id)
     if not source_agent or not target_agent:
         return message.content
 
-    ensure_agent_ct_id(source_agent)
-    ensure_agent_ct_id(target_agent)
-    ensure_agent_ct_id(recipient_agent)
+    ensure_agent_cs_id(source_agent)
+    ensure_agent_cs_id(target_agent)
+    ensure_agent_cs_id(recipient_agent)
 
     partner_agent = target_agent if recipient_agent.id == source_agent.id else source_agent
     recent_message_count = _count_recent_dialogue_messages(db=db, dialogue=dialogue)
     if message.sender_type == "user":
-        message_intro = f"Human guidance from {DEFAULT_USER.label_with_ct_id}:"
+        message_intro = f"Human guidance from {DEFAULT_USER.label_with_cs_id}:"
     else:
         message_intro = f"Partner message from {sender_label}:"
 
@@ -251,8 +251,8 @@ def _build_agent_dialogue_context_text(
             "",
             f"Dialogue ID: AD-{dialogue.id:04d}",
             f"Topic: {dialogue.topic}",
-            f"Your identity: {recipient_agent.display_name} ({recipient_agent.ct_id})",
-            f"Current partner: {partner_agent.display_name} ({partner_agent.ct_id})",
+            f"Your identity: {recipient_agent.display_name} ({recipient_agent.cs_id})",
+            f"Current partner: {partner_agent.display_name} ({partner_agent.cs_id})",
             f"Window guard: {dialogue.window_seconds}s, soft {dialogue.soft_message_limit}, hard {dialogue.hard_message_limit}",
             f"Recent message count in window: {recent_message_count}",
             (
@@ -260,7 +260,7 @@ def _build_agent_dialogue_context_text(
                 if sender_label
                 else "Last speaker: Unknown"
             ),
-            "Instruction: Continue the ongoing Claw Team agent dialogue with your current partner. Reply to the partner directly and stay focused on the topic.",
+            "Instruction: Continue the ongoing ClawSwarm agent dialogue with your current partner. Reply to the partner directly and stay focused on the topic.",
             "",
             message_intro,
             message.content,
@@ -294,6 +294,7 @@ def _maybe_add_soft_limit_warning(*, db: Session, dialogue: AgentDialogue, conve
         conversation_id=conversation.id,
         sender_type="system",
         sender_label="System",
+        sender_cs_id=None,
         content=AGENT_DIALOGUE_WARNING_TEXT,
         status="completed",
     )
@@ -393,7 +394,7 @@ async def dispatch_agent_dialogue_intervention(
         conversation=conversation,
         message=message,
         recipient_agent=recipient_agent,
-        sender_label=DEFAULT_USER.label_with_ct_id,
+        sender_label=DEFAULT_USER.label_with_cs_id,
         sender_user_id=DEFAULT_USER.internal_id,
         dispatch_mode="agent_dialogue_intervention",
     )

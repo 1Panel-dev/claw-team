@@ -88,24 +88,24 @@
               v-if="instance.agents.length"
               :data="instance.agents"
               stripe
-              table-layout="auto"
+              table-layout="fixed"
             >
-              <el-table-column prop="display_name" :label="t('openclaw.displayName')" min-width="180"/>
-              <el-table-column prop="agent_key" :label="t('openclaw.agentKey')" min-width="160"/>
-              <el-table-column prop="ct_id" label="CT ID" min-width="120"/>
-              <el-table-column :label="t('openclaw.roleName')" min-width="160">
+              <el-table-column prop="display_name" :label="t('openclaw.displayName')" min-width="300" show-overflow-tooltip/>
+              <el-table-column prop="agent_key" :label="t('openclaw.agentKey')" min-width="300" show-overflow-tooltip/>
+              <el-table-column prop="cs_id" label="CS ID" min-width="200" show-overflow-tooltip/>
+              <el-table-column :label="t('openclaw.roleName')" min-width="240" show-overflow-tooltip>
                 <template #default="{ row }">
                   {{ row.role_name || "—" }}
                 </template>
               </el-table-column>
-              <el-table-column :label="t('openclaw.agentStatus')" width="120">
+              <el-table-column :label="t('openclaw.agentStatus')" min-width="120">
                 <template #default="{ row }">
                   <el-tag :type="row.enabled ? 'success' : 'info'" effect="light">
                     {{ row.enabled ? t("conversation.enabled") : t("conversation.disabled") }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column :label="t('openclaw.actions')" width="220" fixed="right">
+              <el-table-column :label="t('openclaw.actions')" min-width="220" fixed="right">
                 <template #default="{ row }">
                   <el-space>
                     <el-button
@@ -254,7 +254,7 @@ function statusTagType(status: string) {
 }
 
 function canEditAgent(agent: AgentReadApi) {
-  return agent.created_via_claw_team || agent.agent_key.trim().toLowerCase() !== "main";
+  return agent.created_via_clawswarm || agent.agent_key.trim().toLowerCase() !== "main";
 }
 
 async function syncAgents(instanceId: number, instanceName: string) {

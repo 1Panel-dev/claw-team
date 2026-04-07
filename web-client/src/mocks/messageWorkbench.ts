@@ -36,7 +36,7 @@ const mockAgents = [
     {
         id: MOCK_AGENT_ID,
         agent_key: "mia-pm",
-        ct_id: "CTA-9101",
+        cs_id: "CSA-9101",
         display_name: "Mia 产品经理",
         role_name: "产品协作 Agent",
         enabled: true,
@@ -44,7 +44,7 @@ const mockAgents = [
     {
         id: MOCK_AGENT_NOVA_ID,
         agent_key: "nova-engineer",
-        ct_id: "CTA-9102",
+        cs_id: "CSA-9102",
         display_name: "Nova 工程师",
         role_name: "实现建议 Agent",
         enabled: true,
@@ -52,7 +52,7 @@ const mockAgents = [
     {
         id: 9103,
         agent_key: "lyra-ops",
-        ct_id: "CTA-9103",
+        cs_id: "CSA-9103",
         display_name: "Lyra 运维",
         role_name: "发布巡检 Agent",
         enabled: true,
@@ -60,7 +60,7 @@ const mockAgents = [
     {
         id: 9104,
         agent_key: "aria-designer",
-        ct_id: "CTA-9104",
+        cs_id: "CSA-9104",
         display_name: "Aria 设计师",
         role_name: "界面审阅 Agent",
         enabled: true,
@@ -68,7 +68,7 @@ const mockAgents = [
     {
         id: 9105,
         agent_key: "echo-qa",
-        ct_id: "CTA-9105",
+        cs_id: "CSA-9105",
         display_name: "Echo 测试",
         role_name: "验证回归 Agent",
         enabled: true,
@@ -76,7 +76,7 @@ const mockAgents = [
     {
         id: 9106,
         agent_key: "kai-support",
-        ct_id: "CTA-9106",
+        cs_id: "CSA-9106",
         display_name: "Kai 客服",
         role_name: "客户沟通 Agent",
         enabled: true,
@@ -84,7 +84,7 @@ const mockAgents = [
     {
         id: 9107,
         agent_key: "iris-data",
-        ct_id: "CTA-9107",
+        cs_id: "CSA-9107",
         display_name: "Iris 数据分析",
         role_name: "数据洞察 Agent",
         enabled: true,
@@ -92,7 +92,7 @@ const mockAgents = [
     {
         id: 9108,
         agent_key: "leo-architect",
-        ct_id: "CTA-9108",
+        cs_id: "CSA-9108",
         display_name: "Leo 架构师",
         role_name: "系统设计 Agent",
         enabled: true,

@@ -6,7 +6,7 @@ import type { Logger } from "../observability/logger.js";
 import type { AccountConfig } from "../config.js";
 import type { IdempotencyStore } from "../store/idempotency.js";
 import type { MessageStateStore } from "../store/messageState.js";
-import type { ClawTeamCallbackClient } from "../callback/client.js";
+import type { ClawSwarmCallbackClient } from "../callback/client.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
 import type { InboundMessage } from "../router/resolveRoute.js";
 import { buildSessionKey } from "../router/sessionKey.js";
@@ -22,7 +22,7 @@ export async function dispatchGroup(params: {
 
     idempotency: IdempotencyStore;
     messageState: MessageStateStore;
-    clawTeam: ClawTeamCallbackClient;
+    clawSwarm: ClawSwarmCallbackClient;
     openclaw: OpenClawRuntimeAdapter;
 
     inbound: InboundMessage;
@@ -37,7 +37,7 @@ export async function dispatchGroup(params: {
         logger,
         idempotency,
         messageState,
-        clawTeam,
+        clawSwarm,
         openclaw,
         inbound,
         agentIds,
@@ -67,7 +67,7 @@ export async function dispatchGroup(params: {
                     logger,
                     idempotency,
                     messageState,
-                    clawTeam,
+                    clawSwarm,
                     openclaw,
                     inbound,
                     agentId,

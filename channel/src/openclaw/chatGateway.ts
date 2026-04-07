@@ -2,7 +2,7 @@ import { Agent as UndiciAgent } from "undici";
 
 import type { AgentTurnParams, OpenClawRunChunk } from "./runtimeTypes.js";
 
-// 这里把 Claw Team 的 turn 参数收敛成 OpenAI 兼容请求。
+// 这里把 ClawSwarm 的 turn 参数收敛成 OpenAI 兼容请求。
 // 对 OpenClaw 来说，真正的路由仍然由请求头里的 agent/session 控制。
 export function makeGatewayPayload(params: AgentTurnParams) {
     return {

@@ -20,7 +20,7 @@ from src.schemas.common import dump_model
 from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate
 from src.schemas.common import validate_orm
 from src.services.agent_cleanup import delete_agent_private_conversations
-from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.agent_cs_id import ensure_agent_cs_id
 
 router = APIRouter(prefix="/api", tags=["agents"])
 
@@ -29,11 +29,11 @@ AGENT_SYNC_TIMEOUT = httpx.Timeout(60.0, connect=5.0)
 def can_edit_agent_profile(agent: AgentProfile) -> bool:
     """
     兼容历史数据：
-    1. 新创建的 Agent 直接看 created_via_claw_team。
+    1. 新创建的 Agent 直接看 created_via_clawswarm。
     2. 旧数据在加字段前没有来源标记，这里先把非 main Agent 视为可编辑，
-       避免把此前确实在 ClawTeam 创建的 Agent 全部误判成只读。
+       避免把此前确实在 ClawSwarm 创建的 Agent 全部误判成只读。
     """
-    if agent.created_via_claw_team:
+    if agent.created_via_clawswarm:
         return True
     return agent.agent_key.strip().lower() != "main"
 
@@ -42,7 +42,7 @@ def fetch_channel_agents(instance: OpenClawInstance) -> list[dict]:
     base_url = instance.channel_base_url.rstrip("/")
     try:
         with httpx.Client(timeout=AGENT_SYNC_TIMEOUT, verify=False) as client:
-            response = client.get(f"{base_url}/claw-team/v1/agents")
+            response = client.get(f"{base_url}/clawswarm/v1/agents")
             response.raise_for_status()
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
@@ -52,7 +52,7 @@ def fetch_channel_agents(instance: OpenClawInstance) -> list[dict]:
         if exc.response.status_code == 404:
             raise HTTPException(
                 status_code=502,
-                detail="claw-team plugin is unavailable on the OpenClaw instance",
+                detail="clawswarm plugin is unavailable on the OpenClaw instance",
             ) from exc
         raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
 
@@ -73,7 +73,7 @@ def upsert_instance_agent(
     display_name: str,
     role_name: str | None = None,
     enabled: bool = True,
-    created_via_claw_team: bool | None = None,
+    created_via_clawswarm: bool | None = None,
 ) -> AgentProfile:
     agent = db.scalar(
         select(AgentProfile).where(
@@ -89,7 +89,7 @@ def upsert_instance_agent(
             role_name=role_name,
             enabled=enabled,
             removed_from_openclaw=False,
-            created_via_claw_team=created_via_claw_team or False,
+            created_via_clawswarm=created_via_clawswarm or False,
         )
         db.add(agent)
     else:
@@ -97,11 +97,11 @@ def upsert_instance_agent(
         if role_name is not None:
             agent.role_name = role_name
         agent.removed_from_openclaw = False
-        if created_via_claw_team is not None:
-            agent.created_via_claw_team = created_via_claw_team
+        if created_via_clawswarm is not None:
+            agent.created_via_clawswarm = created_via_clawswarm
 
     db.flush()
-    ensure_agent_ct_id(agent)
+    ensure_agent_cs_id(agent)
     db.flush()
     return agent
 
@@ -147,8 +147,8 @@ def list_agents(instance_id: int, db: Session = Depends(db_session)) -> list[Age
     )
     touched = False
     for agent in agents:
-        if not (agent.ct_id or "").strip():
-            ensure_agent_ct_id(agent)
+        if not (agent.cs_id or "").strip():
+            ensure_agent_cs_id(agent)
             touched = True
     if touched:
         db.commit()
@@ -193,7 +193,7 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
         if exc.response.status_code == 404:
             raise HTTPException(
                 status_code=502,
-                detail="claw-team plugin is unavailable on the OpenClaw instance",
+                detail="clawswarm plugin is unavailable on the OpenClaw instance",
             ) from exc
         raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
     except ValueError as exc:
@@ -211,7 +211,7 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
         display_name=display_name,
         role_name=payload.role_name,
         enabled=payload.enabled,
-        created_via_claw_team=True,
+        created_via_clawswarm=True,
     )
 
     try:
@@ -239,8 +239,8 @@ async def get_agent_profile(agent_id: int, db: Session = Depends(db_session)) ->
         raise HTTPException(status_code=404, detail="agent not found")
     if not can_edit_agent_profile(agent):
         raise HTTPException(status_code=403, detail="agent profile is read-only")
-    if not (agent.ct_id or "").strip():
-        ensure_agent_ct_id(agent)
+    if not (agent.cs_id or "").strip():
+        ensure_agent_cs_id(agent)
         db.commit()
         db.refresh(agent)
 
@@ -263,7 +263,7 @@ async def get_agent_profile(agent_id: int, db: Session = Depends(db_session)) ->
         if exc.response.status_code == 404:
             raise HTTPException(
                 status_code=502,
-                detail="claw-team plugin is unavailable on the OpenClaw instance",
+                detail="clawswarm plugin is unavailable on the OpenClaw instance",
             ) from exc
         raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
     except ValueError as exc:
@@ -321,7 +321,7 @@ async def update_agent(agent_id: int, payload: AgentUpdate, db: Session = Depend
             if exc.response.status_code == 404:
                 raise HTTPException(
                     status_code=502,
-                    detail="claw-team plugin is unavailable on the OpenClaw instance",
+                detail="clawswarm plugin is unavailable on the OpenClaw instance",
                 ) from exc
             raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
         except ValueError as exc:
@@ -331,8 +331,8 @@ async def update_agent(agent_id: int, payload: AgentUpdate, db: Session = Depend
         if key in {"identity_md", "soul_md", "user_md", "memory_md"}:
             continue
         setattr(agent, key, value)
-    if not (agent.ct_id or "").strip():
-        ensure_agent_ct_id(agent)
+    if not (agent.cs_id or "").strip():
+        ensure_agent_cs_id(agent)
     db.commit()
     db.refresh(agent)
     return agent

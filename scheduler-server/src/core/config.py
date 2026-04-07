@@ -6,9 +6,9 @@ from pydantic import BaseModel
 import os
 from pathlib import Path
 
-DEFAULT_CONTAINER_DATABASE_URL = "sqlite:////app/data/app.db"
+DEFAULT_CONTAINER_DATABASE_URL = "sqlite:////opt/clawswarm/app.db"
 DEFAULT_LOCAL_DATABASE_URL = "sqlite:///./data/app.db"
-DEFAULT_WEB_DIST_DIR = "/app/web"
+DEFAULT_WEB_DIST_DIR = "/opt/clawswarm-web"
 
 
 def _default_database_url() -> str:
@@ -42,7 +42,7 @@ class Settings(BaseModel):
     # 本地前后端联调时，如果 OpenClaw / channel 不可用，
     # 可以打开这个开关，由 scheduler-server 自己生成一条模拟 Agent 回复。
     local_agent_mock_enabled: bool = _env_flag("LOCAL_AGENT_MOCK_ENABLED", False)
-    auth_secret: str = os.getenv("AUTH_SECRET", "claw-team-dev-auth-secret")
+    auth_secret: str = os.getenv("AUTH_SECRET", "clawswarm-dev-auth-secret")
     default_login_username: str = os.getenv("DEFAULT_LOGIN_USERNAME", "admin")
     default_login_password: str = os.getenv("DEFAULT_LOGIN_PASSWORD", "admin123456")
 

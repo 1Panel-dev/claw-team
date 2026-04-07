@@ -1,6 +1,6 @@
 import { defaultThemeId, type ThemeId } from "@/theme/themes";
 
-const STORAGE_KEY = "claw-team-theme";
+const STORAGE_KEY = "clawswarm-theme";
 
 export function applyTheme(themeId: ThemeId): void {
     document.documentElement.setAttribute("data-theme", themeId);

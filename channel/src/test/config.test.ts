@@ -28,7 +28,7 @@ describe("resolveGatewayRuntimeConfig", () => {
         process.env.OPENCLAW_GATEWAY_INSECURE_TLS = "0";
 
         const account = AccountConfigSchema.parse({
-            baseUrl: "https://claw-team.example.com",
+            baseUrl: "https://clawswarm.example.com",
             outboundToken: "outbound-token",
             inboundSigningSecret: "1234567890123456",
             gateway: {
@@ -58,7 +58,7 @@ describe("resolveGatewayRuntimeConfig", () => {
         process.env.OPENCLAW_GATEWAY_INSECURE_TLS = "1";
 
         const account = AccountConfigSchema.parse({
-            baseUrl: "https://claw-team.example.com",
+            baseUrl: "https://clawswarm.example.com",
             outboundToken: "outbound-token",
             inboundSigningSecret: "1234567890123456",
         });
@@ -75,7 +75,7 @@ describe("resolveGatewayRuntimeConfig", () => {
 
     it("supports explicit plugin_runtime transport selection", () => {
         const account = AccountConfigSchema.parse({
-            baseUrl: "https://claw-team.example.com",
+            baseUrl: "https://clawswarm.example.com",
             outboundToken: "outbound-token",
             inboundSigningSecret: "1234567890123456",
             gateway: {
@@ -96,7 +96,7 @@ describe("resolveGatewayRuntimeConfig", () => {
 
     it("supports explicit auto transport selection", () => {
         const account = AccountConfigSchema.parse({
-            baseUrl: "https://claw-team.example.com",
+            baseUrl: "https://clawswarm.example.com",
             outboundToken: "outbound-token",
             inboundSigningSecret: "1234567890123456",
             gateway: {

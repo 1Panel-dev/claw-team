@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <img class="login-card__logo" src="/Logo-2.png" alt="Claw Team Logo" />
+      <img class="login-card__logo" src="/Logo-2.png" alt="ClawSwarm Logo" />
       <h1 class="login-card__title">{{ t("auth.loginTitle") }}</h1>
 
       <el-form label-position="top" @submit.prevent="handleSubmit">
@@ -48,7 +48,7 @@ async function handleSubmit() {
         });
         ElMessage.success(t("auth.loginSuccess"));
         if (authStore.user?.using_default_password) {
-            window.localStorage.setItem("claw-team.open-account-dialog", "1");
+            window.localStorage.setItem("clawswarm.open-account-dialog", "1");
             ElMessage.warning(t("auth.defaultPasswordWarning"));
         }
         const redirect = typeof route.query.redirect === "string" && route.query.redirect ? route.query.redirect : "/messages";

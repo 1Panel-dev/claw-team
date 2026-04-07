@@ -35,11 +35,11 @@ class AgentDialogueRead(TimestampedModel):
     id: int
     conversation_id: int
     source_agent_id: int
-    source_agent_ct_id: str
+    source_agent_cs_id: str
     source_agent_display_name: str
     source_agent_instance_name: str | None = None
     target_agent_id: int
-    target_agent_ct_id: str
+    target_agent_cs_id: str
     target_agent_display_name: str
     target_agent_instance_name: str | None = None
     topic: str
@@ -51,10 +51,10 @@ class AgentDialogueRead(TimestampedModel):
     hard_message_limit: int
     soft_limit_warned_at: datetime | None
     last_speaker_agent_id: int | None
-    last_speaker_agent_ct_id: str | None
+    last_speaker_agent_cs_id: str | None
     last_speaker_agent_display_name: str | None
     next_agent_id: int | None
-    next_agent_ct_id: str | None
+    next_agent_cs_id: str | None
     next_agent_display_name: str | None
 
 

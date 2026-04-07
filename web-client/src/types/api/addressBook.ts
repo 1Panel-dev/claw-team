@@ -6,7 +6,7 @@
 export interface AddressBookAgentApi {
     id: number;
     agent_key: string;
-    ct_id: string;
+    cs_id: string;
     display_name: string;
     role_name: string | null;
     enabled: boolean;

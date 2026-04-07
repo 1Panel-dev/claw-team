@@ -7,7 +7,7 @@ describe("createPluginRuntimeServices", () => {
         const api = {
             config: {
                 channels: {
-                    "claw-team": {
+                    "clawswarm": {
                         accounts: {
                             default: {},
                         },

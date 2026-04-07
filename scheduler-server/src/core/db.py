@@ -7,6 +7,7 @@ from typing import Generator
 from uuid import uuid4
 
 from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from src.core.config import settings
@@ -37,7 +38,13 @@ connect_args = (
     if is_sqlite
     else {}
 )
-engine = create_engine(settings.database_url, echo=False, future=True, connect_args=connect_args)
+engine = create_engine(
+    settings.database_url,
+    echo=False,
+    future=True,
+    connect_args=connect_args,
+    poolclass=NullPool if is_sqlite else None,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
@@ -82,13 +89,19 @@ def ensure_runtime_schema() -> None:
             statements.append("ALTER TABLE tasks ADD COLUMN parent_task_id VARCHAR(64)")
             statements.append("CREATE INDEX IF NOT EXISTS ix_tasks_parent_task_id ON tasks (parent_task_id)")
 
+    if "messages" in table_names:
+        message_columns = {column["name"] for column in inspector.get_columns("messages")}
+        if "sender_cs_id" not in message_columns:
+            statements.append("ALTER TABLE messages ADD COLUMN sender_cs_id VARCHAR(32)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_messages_sender_cs_id ON messages (sender_cs_id)")
+
     if "agent_profiles" in table_names:
         agent_columns = {column["name"] for column in inspector.get_columns("agent_profiles")}
-        if "created_via_claw_team" not in agent_columns:
-            statements.append("ALTER TABLE agent_profiles ADD COLUMN created_via_claw_team BOOLEAN DEFAULT 0")
-        if "ct_id" not in agent_columns:
-            statements.append("ALTER TABLE agent_profiles ADD COLUMN ct_id VARCHAR(32)")
-            statements.append("CREATE INDEX IF NOT EXISTS ix_agent_profiles_ct_id ON agent_profiles (ct_id)")
+        if "created_via_clawswarm" not in agent_columns:
+            statements.append("ALTER TABLE agent_profiles ADD COLUMN created_via_clawswarm BOOLEAN DEFAULT 0")
+        if "cs_id" not in agent_columns:
+            statements.append("ALTER TABLE agent_profiles ADD COLUMN cs_id VARCHAR(32)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_agent_profiles_cs_id ON agent_profiles (cs_id)")
         if "removed_from_openclaw" not in agent_columns:
             statements.append("ALTER TABLE agent_profiles ADD COLUMN removed_from_openclaw BOOLEAN DEFAULT 0")
 
