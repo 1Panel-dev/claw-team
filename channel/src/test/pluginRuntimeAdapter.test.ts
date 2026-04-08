@@ -154,4 +154,62 @@ describe("createPluginRuntimeAdapter", () => {
         expect(chunks).toEqual(["forecast ok", "forecast ok"]);
         expect(dispatchInboundDirectDmWithRuntimeMock).toHaveBeenCalledTimes(1);
     });
+
+    it("extracts final text from rich content payloads delivered by the official helper", async () => {
+        dispatchInboundDirectDmWithRuntimeMock.mockReset();
+        dispatchInboundDirectDmWithRuntimeMock.mockImplementationOnce(async (params) => {
+            await params.deliver({
+                content: [
+                    { type: "text", text: "好，信息够了。" },
+                    { type: "text", text: "下面给你完整方案。" },
+                ],
+            });
+        });
+
+        const adapter = createPluginRuntimeAdapter({
+            runtime: {
+                config: { loadConfig: () => ({ session: { store: "~/.openclaw/agents/{agentId}/sessions/sessions.json" } }) },
+                channel: {
+                    routing: {
+                        resolveAgentRoute: () => ({
+                            agentId: "main",
+                            sessionKey: "agent:main:main",
+                            accountId: "default",
+                        }),
+                    },
+                    reply: {
+                        resolveEnvelopeFormatOptions: () => ({}),
+                        formatAgentEnvelope: ({ body }: { body: string }) => body,
+                        finalizeInboundContext: (ctx: unknown) => ctx,
+                        dispatchReplyWithBufferedBlockDispatcher: vi.fn(),
+                    },
+                    session: {
+                        resolveStorePath: () => "/tmp/weather-sessions.json",
+                        readSessionUpdatedAt: () => undefined,
+                        recordInboundSession: vi.fn(async () => undefined),
+                    },
+                },
+            },
+        });
+
+        const chunks: string[] = [];
+        for await (const chunk of adapter.runAgentTextTurn({
+            agentId: "weather",
+            channelId: "clawswarm",
+            accountId: "default",
+            sessionKey: "agent:weather:weather",
+            peer: { kind: "direct", id: "conv-1" },
+            from: { userId: "user-1", displayName: "Alice" },
+            text: "给我完整方案",
+            gateway,
+        })) {
+            chunks.push(chunk.text);
+        }
+
+        expect(chunks).toEqual([
+            "好，信息够了。下面给你完整方案。",
+            "好，信息够了。下面给你完整方案。",
+        ]);
+        expect(dispatchInboundDirectDmWithRuntimeMock).toHaveBeenCalledTimes(1);
+    });
 });

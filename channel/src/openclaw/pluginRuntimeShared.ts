@@ -78,14 +78,34 @@ export type DirectDmHelperModule = {
 
 export type ResolvedPluginRuntime = ReturnType<typeof resolvePluginRuntime>;
 
-// reply dispatcher 的 deliver 回调可能返回多种 payload 形状，这里统一抽纯文本。
-export function extractTextFromReplyPayload(payload: unknown): string {
-    if (!payload || typeof payload !== "object") return "";
+function collectTextFragments(payload: unknown): string[] {
+    if (typeof payload === "string") return [payload];
+    if (Array.isArray(payload)) return payload.flatMap((item) => collectTextFragments(item));
+    if (!payload || typeof payload !== "object") return [];
+
     const record = payload as Record<string, unknown>;
-    if (typeof record.text === "string") return record.text;
-    if (typeof record.content === "string") return record.content;
-    if (typeof record.message === "string") return record.message;
-    return "";
+    const fragments: string[] = [];
+
+    if (typeof record.text === "string") fragments.push(record.text);
+    if (typeof record.content === "string") fragments.push(record.content);
+    if (typeof record.message === "string") fragments.push(record.message);
+    if (typeof record.markdown === "string") fragments.push(record.markdown);
+
+    // 官方 helper 可能返回 content / parts 这样的富文本数组结构，
+    // 文本块里常见的是 { type: "text", text: "..." }。
+    for (const key of ["content", "parts", "items", "blocks"]) {
+        if (key in record) {
+            fragments.push(...collectTextFragments(record[key]));
+        }
+    }
+
+    return fragments;
+}
+
+// reply dispatcher 的 deliver 回调可能返回字符串、富文本数组或嵌套对象；
+// 这里统一递归提取纯文本，避免 final callback 误发空结果。
+export function extractTextFromReplyPayload(payload: unknown): string {
+    return collectTextFragments(payload).join("");
 }
 
 // 手动 runtime 路径需要先构造一个标准 inbound context，
