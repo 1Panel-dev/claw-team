@@ -1,6 +1,6 @@
 {
   "name": "clawswarm-web-client",
-  "version": "0.1.0",
+  "version": "v1.0.3",
   "private": true,
   "type": "module",
   "scripts": {
