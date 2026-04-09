@@ -1,7 +1,5 @@
 /**
- * 任务模块当前先使用前端本地结构把页面骨架搭起来，
- * 后续接真实后端接口时，尽量沿用这一层 ViewModel，
- * 避免页面组件直接绑定后端原始字段。
+ * 任务模块在前端展示层使用的 ViewModel。
  */
 
 export type TaskStatus = "in_progress" | "completed" | "terminated";

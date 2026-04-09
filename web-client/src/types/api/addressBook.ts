@@ -1,7 +1,7 @@
 /**
- * 这里放 scheduler-server 通讯录接口的原始类型。
+ * 通讯录接口的原始响应类型。
  *
- * 这一层保持和后端字段一致，避免页面组件直接耦合后端结构。
+ * 这一层保持与后端字段一致。
  */
 export interface AddressBookAgentApi {
     id: number;

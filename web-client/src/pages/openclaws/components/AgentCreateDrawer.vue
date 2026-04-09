@@ -109,13 +109,9 @@
 
 <script setup lang="ts">
 /**
- * 这个抽屉统一承接 Agent 的创建和编辑。
+ * Agent 创建与编辑抽屉。
  *
- * 第一阶段只开放最关键的三类信息：
- * 1. 通讯录与路由需要的基础字段。
- * 2. IDENTITY.md / SOUL.md / USER.md / MEMORY.md 四个核心 bootstrap 文件。
- * 3. 编辑时直接从 OpenClaw 读取当前文件内容后回显。
- * 4. 编辑模式下只有显式点开某个文件的编辑按钮，才允许修改该文件。
+ * 负责基础字段以及四个工作区文件的编辑。
  */
 import {ArrowDown, EditPen} from "@element-plus/icons-vue";
 import {computed, reactive, ref, watch} from "vue";
@@ -328,7 +324,7 @@ function updateFileField(field: FileFieldKey, value: string) {
   }
   form[field] = value;
   if (isEditMode.value) {
-    // 编辑状态下用“当前值 vs 初始值”做真实比对，避免改完又改回去仍被判成已修改。
+    // 编辑模式下只标记真正发生变化的文件。
     fileDirtyState[field] = value !== initialFileValues[field];
   }
 }
@@ -380,7 +376,7 @@ function submit() {
       role_name: form.role_name.trim(),
     };
 
-    // 编辑模式下只提交用户真正改过的文件，避免把未触碰内容误写回远端。
+    // 编辑模式下只提交真正改过的文件。
     if (fileDirtyState.identity_md) {
       payload.identity_md = form.identity_md;
     }

@@ -6,7 +6,7 @@
     destroy-on-close
     @close="emit('update:visible', false)"
   >
-    <div class="drawer-body">
+    <div v-loading="submitting" class="drawer-body">
       <el-form label-position="top">
         <el-form-item :label="t('openclaw.instanceName')">
           <el-input v-model="form.name" maxlength="120" :placeholder="t('openclaw.instanceNamePlaceholder')" />
@@ -85,7 +85,7 @@
     <template #footer>
       <div class="drawer-actions">
         <el-button @click="emit('update:visible', false)">{{ t("common.cancel") }}</el-button>
-        <el-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
+        <el-button type="primary" :disabled="!canSubmit" @click="submit">
           {{ submitLabel }}
         </el-button>
       </div>
@@ -95,10 +95,9 @@
 
 <script setup lang="ts">
 /**
- * 这个对话框负责新增 OpenClaw 实例。
+ * OpenClaw 实例创建与编辑抽屉。
  *
- * 第一阶段先只收集调度中心对接 channel 所需的最小字段，
- * 这样能尽快把实例管理链路补齐，而不把高级配置过早塞进 UI。
+ * 负责实例基础信息和接入配置片段展示。
  */
 import { computed, reactive, watch } from "vue";
 import { DocumentCopy, InfoFilled } from "@element-plus/icons-vue";

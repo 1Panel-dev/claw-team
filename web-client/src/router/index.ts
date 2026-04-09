@@ -1,21 +1,14 @@
 /**
- * 这里定义 Web Client 的路由骨架。
+ * 应用路由定义。
  *
- * 路由从第一天就按长期产品模块划分：
- * 1. 消息
- * 2. OpenClaw 管理
- * 3. 任务
- * 4. 设置
- *
- * 这样第一阶段虽然只有消息模块真正落地，
- * 但后续扩展不会从“聊天 demo”再重构成“完整应用”。
+ * 这里集中管理公开页、主框架页以及登录态守卫。
  */
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { pinia } from "@/stores/pinia";
 
 const LoginPage = () => import("@/pages/login/LoginPage.vue");
-const MainLayout = () => import("@/pages/shell/MainLayout.vue");
+const MainLayout = () => import("@/pages/frame/MainLayout.vue");
 const MessagesPage = () => import("@/pages/messages/MessagesPage.vue");
 const OpenClawsPage = () => import("@/pages/openclaws/OpenClawsPage.vue");
 const TasksPage = () => import("@/pages/tasks/TasksPage.vue");

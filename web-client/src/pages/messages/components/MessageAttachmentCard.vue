@@ -16,11 +16,7 @@
 
 <script setup lang="ts">
 /**
- * 附件卡片先做前端占位样式。
- *
- * 第一阶段后端还没把附件真正传过来，
- * 所以前端先把消息卡片样式定下来。
- * 后面协议升级后，这个组件可以直接复用。
+ * 附件消息卡片。
  */
 import { computed } from "vue";
 import { useI18n } from "@/composables/useI18n";

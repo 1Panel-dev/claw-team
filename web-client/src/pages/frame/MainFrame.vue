@@ -9,10 +9,9 @@
 
 <script setup lang="ts">
 /**
- * MainFrame 是整套前端应用的稳定外壳。
+ * 主框架外壳。
  *
- * 它只负责整体结构，不直接耦合消息、任务、OpenClaw 管理这些具体业务。
- * 这样后面模块增加时，不需要重做全局布局。
+ * 负责顶栏与页面主体的整体布局，不承载具体业务逻辑。
  */
 import AppTopNav from "@/pages/components/AppTopNav.vue";
 </script>

@@ -42,8 +42,7 @@
 /**
  * ConversationPanel 是聊天主区域。
  *
- * 它只组合消息列表和输入框，不把轮询和数据请求直接写死在这里，
- * 这样后面如果要增加右侧详情栏、文件面板或任务面板，会更容易拆。
+ * 负责组合消息列表、对话工具条和输入区域。
  */
 import { computed } from "vue";
 
@@ -137,7 +136,7 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
         }
     };
 
-    // 优先使用当前群详情，避免群成员展示时漏掉角色名。
+    // 群聊优先使用当前群详情补齐角色名和实例信息。
     for (const member of groupStore.currentGroupDetail?.members ?? []) {
         const instance = addressBookStore.instances.find((item) => item.id === member.instance_id);
         const agent = instance?.agents.find((item) => item.id === member.agent_id);
@@ -167,7 +166,7 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
         }
     }
 
-    // 再补一层通讯录里的实例 Agent，覆盖单聊和普通对话展示。
+    // 再用通讯录补齐单聊和普通消息里的身份信息。
     for (const instance of addressBookStore.instances) {
         for (const agent of instance.agents) {
             assignMeta(agent.display_name, { roleName: agent.role_name, csId: agent.cs_id, instanceName: instance.name });

@@ -164,11 +164,9 @@
 
 <script setup lang="ts">
 /**
- * 任务创建弹窗负责承接第一阶段最小闭环：
- * 用户创建任务，并明确指定一个可用 Agent 作为执行者。
+ * 任务创建抽屉。
  *
- * 这里先使用前端本地数据验证流程，后续接真实后端时，
- * 尽量只替换提交逻辑，不重做表单结构。
+ * 负责录入任务基础信息、执行 Agent 和子任务。
  */
 import { computed, reactive, ref, watch } from "vue";
 
@@ -262,8 +260,7 @@ function submit() {
         priority: form.priority,
         tags: form.tags.map((tag) => tag.trim()).filter(Boolean),
         assignee: selectedAssignee.value,
-        // 第一阶段只支持“父任务 + 子任务”两级输入，
-        // 提交时把无效子任务先过滤掉，避免后端收到空标题/空描述。
+        // 提交前过滤掉未填写完整的子任务。
         children: form.children
             .map((child) => ({
                 title: child.title.trim(),
@@ -276,7 +273,7 @@ function submit() {
 }
 
 function addChildTask() {
-    // 子任务只做最小执行单元录入，不再继续往下拆孙任务。
+    // 子任务只支持当前这一层录入。
     form.children.push({
         id: crypto.randomUUID(),
         title: "",

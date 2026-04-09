@@ -1,5 +1,5 @@
 /**
- * 这里放会话和消息相关的后端原始返回类型。
+ * 会话与消息接口的原始响应类型。
  */
 export interface ConversationListItemApi {
     id: number;

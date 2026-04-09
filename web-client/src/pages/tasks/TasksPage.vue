@@ -92,12 +92,9 @@
 
 <script setup lang="ts">
 /**
- * 任务页现在改成更贴近“管理台”的结构：
- * 1. 顶部状态 Tab
- * 2. 工具栏里的创建按钮和搜索框
- * 3. 下方表格列表
+ * 任务页容器。
  *
- * 这样后续接真实任务后端时，更容易直接套上真实列表和按批次查询。
+ * 负责组织任务筛选、列表、创建入口和详情抽屉。
  */
 import { computed, h, onMounted, ref } from "vue";
 import ElButton from "element-plus/es/components/button/index";
@@ -166,7 +163,7 @@ const columns = computed<Column[]>(() => [
                 "div",
                 {
                     class: "task-cell task-cell--title",
-                    // 同一张虚拟表里靠缩进表达层级，不额外切换组件或开树表。
+                    // 在同一张虚拟表里用缩进表达层级。
                     style: { paddingInlineStart: `${12 + (rowData.level ?? 0) * 22}px` },
                     title: rowData.title,
                 },
@@ -319,7 +316,7 @@ async function handleTerminateTask(taskId: string) {
 
 function openTaskDetail(taskId: string) {
     detailTaskId.value = taskId;
-    // 详情侧边栏要支持点开子任务，所以选中逻辑统一走 store 的递归查找。
+    // 详情抽屉需要支持父子任务切换，统一复用 store 的递归查找结果。
     taskStore.selectTask(taskId);
     detailDrawerVisible.value = true;
 }

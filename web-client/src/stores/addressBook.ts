@@ -94,8 +94,7 @@ export const useAddressBookStore = defineStore("addressBook", {
                 if (!hiddenEntry) {
                     continue;
                 }
-                // 最近联系人只是在当前消息快照下暂时隐藏。
-                // 只要最后一条消息变了，就说明这条会话重新活跃，应当自动回到列表中。
+                // 会话内容变化后，自动恢复到最近联系人列表。
                 if (item.last_message_id !== hiddenEntry.last_message_id) {
                     delete nextMap[key];
                     changed = true;
@@ -139,7 +138,7 @@ function persistHiddenRecentConversationMap(value: HiddenRecentConversationMap) 
 function normalizeHiddenRecentConversationMap(value: Record<string, unknown>): HiddenRecentConversationMap {
     const entries = Object.entries(value).flatMap(([conversationId, rawEntry]) => {
         if (typeof rawEntry === "string") {
-            // 兼容旧格式：以前只记录隐藏时间。
+            // 兼容只保存隐藏时间的旧格式。
             return [[conversationId, { hidden_at: rawEntry, last_message_id: null } satisfies HiddenRecentConversationEntry] as const];
         }
         if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {

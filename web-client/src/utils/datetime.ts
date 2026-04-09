@@ -1,11 +1,7 @@
 /**
- * 调度中心当前返回的时间字符串大多是 ISO 形状，但没有显式时区。
+ * 时间解析工具。
  *
- * 这类值如果直接 `new Date(value)`，浏览器会把它当成本地时间解析，
- * 而服务端实际保存的是 UTC 时间，最终就会整体偏 8 小时。
- *
- * 这里统一把“没有显式时区的 ISO 字符串”补成 UTC，再交给浏览器格式化，
- * 这样前端会按用户本地时区正确显示。
+ * 后端部分时间字符串不显式带时区，这里统一按 UTC 处理后再格式化。
  */
 
 const ISO_WITHOUT_TIMEZONE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
@@ -29,4 +25,3 @@ export function formatServerDateTime(
 ): string {
     return new Intl.DateTimeFormat(locale, options).format(parseServerDateTime(value));
 }
-

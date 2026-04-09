@@ -151,8 +151,7 @@ function byUpdatedDesc(a: TaskView, b: TaskView) {
 }
 
 function replaceTask(items: TaskView[], nextTask: TaskView): TaskView[] {
-    // 完成/终止动作可能发生在父任务或子任务上，
-    // 所以这里递归替换，避免子任务状态更新后丢回顶层找不到。
+    // 父任务和子任务共用同一套递归替换逻辑。
     return items
         .map((task) => {
             if (task.id === nextTask.id) {
@@ -186,8 +185,7 @@ function findTask(items: TaskView[], taskId: string | null): TaskView | null {
 }
 
 function flattenTasks(items: TaskView[], level = 0): TaskView[] {
-    // 任务页继续沿用虚拟滚动表格，不改树组件。
-    // 所以先在 store 层把层级任务拍平成带 level 的行数据。
+    // 列表组件使用扁平行数据，通过 level 表达层级。
     return items.flatMap((task) => [
         { ...task, level },
         ...flattenTasks(task.children, level + 1),
@@ -223,7 +221,7 @@ function toTaskView(task: TaskReadApi): TaskView {
             content: entry.content,
             at: entry.at,
         })),
-        // 读后端层级结构时直接递归转 ViewModel，后续列表和详情共用一份数据。
+        // 递归转换后端层级结构，供列表和详情共用。
         children: task.children.map(toTaskView).sort(byUpdatedDesc),
     };
 }

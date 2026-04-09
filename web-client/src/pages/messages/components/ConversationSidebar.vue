@@ -240,11 +240,9 @@
 
 <script setup lang="ts">
 /**
- * 这个侧栏把“最近会话 + 通讯录 + 群组”统一放在一起。
+ * 消息页左侧边栏。
  *
- * 第一阶段先保证消息页能直接用；
- * 后面如果要做更复杂的最近/所有切换、搜索、未读状态，
- * 可以在这个组件内部继续扩展，而不用替换整个左侧栏。
+ * 统一承载最近会话、Agent 通讯录和群组入口。
  */
 import { Collection, ChatRound, Plus, RefreshRight, User } from "@element-plus/icons-vue";
 import type { CollapseModelValue } from "element-plus";

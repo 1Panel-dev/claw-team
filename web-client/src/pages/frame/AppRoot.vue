@@ -6,10 +6,9 @@
 
 <script setup lang="ts">
 /**
- * 顶层组件只负责挂载路由视图。
+ * 顶层根组件。
  *
- * 真正的应用骨架由 MainLayout / MainFrame 承担，
- * 这样后面如果接入登录页、独立落地页或错误页，不需要推倒整个 App 结构。
+ * 这里只负责挂载路由视图和 Element Plus 全局配置。
  */
 import { useI18n } from "@/composables/useI18n";
 

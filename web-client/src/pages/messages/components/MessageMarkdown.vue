@@ -4,17 +4,7 @@
 
 <script setup lang="ts">
 /**
- * 这个组件负责把消息文本按 Markdown 渲染成聊天内容。
- *
- * 第一阶段先把 OpenClaw 聊天里最常见的富文本能力对齐：
- * - 标题和段落
- * - 列表
- * - 引用
- * - 行内代码 / 代码块
- * - 表格
- *
- * 后面如果消息协议升级成多段结构消息，
- * 这里仍然可以继续保留，专门负责 markdown/text 片段。
+ * Markdown 消息渲染组件。
  */
 import { computed } from "vue";
 import MarkdownIt from "markdown-it";

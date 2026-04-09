@@ -23,10 +23,9 @@
 
 <script setup lang="ts">
 /**
- * 消息页是第一阶段真正落地的核心页面。
+ * 消息页容器。
  *
- * 它尽量只承担页面级组织职责，
- * 真正的数据拉取、轮询和状态管理都放在 store / composable 中。
+ * 负责组织消息侧栏、消息面板以及路由驱动的会话切换。
  */
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
@@ -118,9 +117,7 @@ async function ensureConversationSelection() {
     if (route.params.conversationId) {
         return;
     }
-    // 单用户模式下，消息入口直接回到后端最近一条会话。
-    // 不再优先群聊，也不依赖浏览器本地状态，
-    // 这样不同访问地址仍然会落到同一份最新对话。
+    // 没有显式路由目标时，默认回到最近一条会话。
     const targetConversationId = addressBookStore.visibleRecentConversations[0]?.id;
 
     if (targetConversationId) {
@@ -133,8 +130,7 @@ async function ensureConversationSelection() {
 
 function startRecentConversationPolling(intervalMs = 5000) {
     stopRecentConversationPolling();
-    // 当前会话的刷新由 transport 负责；这里专门兜底“其他地方新建了会话”的情况，
-    // 让最近联系人能自动浮出最新的 direct / group / agent_dialogue。
+    // 当前会话由 transport 维护，这里只负责同步最近会话列表。
     recentRefreshTimer.value = window.setInterval(() => {
         void addressBookStore.refreshRecentConversations();
     }, intervalMs);

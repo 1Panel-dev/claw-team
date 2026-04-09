@@ -1,7 +1,5 @@
 /**
- * 这里放前端实际展示层使用的 ViewModel。
- *
- * 和 api 类型分开，可以让页面组件少关心后端命名细节。
+ * 会话列表在前端展示层使用的 ViewModel。
  */
 import type { ConversationListItemApi } from "@/types/api/conversation";
 

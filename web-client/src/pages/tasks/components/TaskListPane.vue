@@ -97,10 +97,9 @@
 
 <script setup lang="ts">
 /**
- * 左侧任务列表面板负责承接筛选、搜索和选择动作。
+ * 任务列表面板。
  *
- * 未来对接真实后端时，这里仍然只关心展示结构，
- * 筛选条件和列表数据由 store 提供。
+ * 负责承接筛选、搜索和选择动作。
  */
 import type { TaskFilterState, TaskPriority, TaskStatus, TaskView } from "@/types/view/task";
 import { formatServerDateTime } from "@/utils/datetime";

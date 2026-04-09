@@ -1,12 +1,7 @@
 /**
- * 这个文件提供消息模块的前端本地模拟数据。
+ * 消息模块的本地模拟数据。
  *
- * 目的不是替代真实后端，而是让消息页在没有联调约束时，
- * 也能直接演示：
- * 1. 通讯录
- * 2. 最近会话
- * 3. 单聊消息流
- * 4. Agent 分段回复和状态变化
+ * 用于在离线或联调不完整时验证消息页交互。
  */
 import type { AddressBookResponseApi } from "@/types/api/addressBook";
 import type {

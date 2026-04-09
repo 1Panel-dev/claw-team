@@ -66,10 +66,7 @@
 
 <script setup lang="ts">
 /**
- * 这个对话框负责创建群组。
- *
- * 第一阶段先把“创建群组”单独收成一个稳定弹窗，
- * 后续如果要接更复杂的群组属性，不需要重做消息页主结构。
+ * 群组创建抽屉。
  */
 import { ref, watch } from "vue";
 import { useI18n } from "@/composables/useI18n";

@@ -12,12 +12,11 @@
 
 <script setup lang="ts">
 /**
- * MainLayout 只负责统一的页面外壳。
+ * 主布局组件。
  *
- * 页面内部是否需要分左右、是否存在侧栏，
- * 都应该由各页面自己负责，而不是在布局层分叉成多套结构。
+ * 负责承接主框架中的路由内容区域。
  */
-import MainFrame from "@/pages/shell/MainFrame.vue";
+import MainFrame from "@/pages/frame/MainFrame.vue";
 </script>
 
 <style scoped>

@@ -1,10 +1,7 @@
 /**
- * 这个 composable 负责“WebSocket 优先，轮询兜底”的消息传输层。
+ * 会话传输层。
  *
- * 设计原则：
- * 1. 首次加载和历史消息仍然走 HTTP。
- * 2. WebSocket 只负责告诉前端“有更新了”。
- * 3. WebSocket 连不上时，自动回退到现有轮询。
+ * 优先使用 WebSocket 感知消息变化；不可用时回退到定时轮询。
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 

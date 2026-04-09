@@ -105,10 +105,9 @@
 
 <script setup lang="ts">
 /**
- * 右侧详情面板先把长期会用到的结构一次性搭好：
- * 基本信息、执行者、时间、标签、时间线。
+ * 任务详情面板。
  *
- * 后续真实任务 API 落地时，组件结构基本可以保持不变。
+ * 展示基础信息、执行者、时间、标签和时间线。
  */
 import type { TaskPriority, TaskStatus, TaskView } from "@/types/view/task";
 import { formatServerDateTime, parseServerDateTime } from "@/utils/datetime";

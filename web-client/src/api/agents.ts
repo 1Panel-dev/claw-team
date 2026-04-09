@@ -19,8 +19,7 @@ export async function createAgent(
         enabled?: boolean;
     },
 ): Promise<AgentReadApi> {
-    // 真实创建 OpenClaw Agent 需要宿主执行 CLI 和后续同步，
-    // 首次创建时明显慢于普通 API，这里单独放宽超时，避免前端先误判失败。
+    // Agent 创建会触发远端文件写入和同步，耗时通常长于普通接口。
     const response = await apiClient.post<AgentReadApi>(`/api/instances/${instanceId}/agents`, payload, {
         timeout: 70000,
     });
