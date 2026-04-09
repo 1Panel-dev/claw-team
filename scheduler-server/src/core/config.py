@@ -8,6 +8,8 @@ from pathlib import Path
 
 DEFAULT_CONTAINER_DATABASE_URL = "sqlite:////opt/clawswarm/app.db"
 DEFAULT_LOCAL_DATABASE_URL = "sqlite:///./data/app.db"
+DEFAULT_CONTAINER_DATA_DIR = "/opt/clawswarm"
+DEFAULT_LOCAL_DATA_DIR = "./data"
 DEFAULT_WEB_DIST_DIR = "/opt/clawswarm-web"
 
 
@@ -15,6 +17,12 @@ def _default_database_url() -> str:
     if Path("/app").exists():
         return DEFAULT_CONTAINER_DATABASE_URL
     return DEFAULT_LOCAL_DATABASE_URL
+
+
+def _default_data_dir() -> str:
+    if Path("/app").exists():
+        return DEFAULT_CONTAINER_DATA_DIR
+    return DEFAULT_LOCAL_DATA_DIR
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -33,6 +41,7 @@ class Settings(BaseModel):
     app_host: str = os.getenv("APP_HOST", "127.0.0.1")
     app_port: int = int(os.getenv("APP_PORT", "8080"))
     database_url: str = os.getenv("DATABASE_URL", _default_database_url())
+    data_dir: str = os.getenv("DATA_DIR", _default_data_dir())
     web_dist_dir: str = os.getenv("WEB_DIST_DIR", DEFAULT_WEB_DIST_DIR)
     default_channel_account_id: str = os.getenv("DEFAULT_CHANNEL_ACCOUNT_ID", "default")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
@@ -43,6 +52,7 @@ class Settings(BaseModel):
     # 可以打开这个开关，由 scheduler-server 自己生成一条模拟 Agent 回复。
     local_agent_mock_enabled: bool = _env_flag("LOCAL_AGENT_MOCK_ENABLED", False)
     auth_secret: str = os.getenv("AUTH_SECRET", "clawswarm-dev-auth-secret")
+    auth_cookie_name: str | None = os.getenv("AUTH_COOKIE_NAME")
     default_login_username: str = os.getenv("DEFAULT_LOGIN_USERNAME", "admin")
     default_login_password: str = os.getenv("DEFAULT_LOGIN_PASSWORD", "admin123456")
 

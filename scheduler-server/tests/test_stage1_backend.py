@@ -37,7 +37,7 @@ from src.models.openclaw_instance import OpenClawInstance
 from src.core.config import settings
 from src.api.routes.agents import sync_instance_agents
 from src.api.routes import instances as instances_route
-from src.services.auth import build_session_cookie_value, ensure_default_user
+from src.services.auth import build_session_cookie_value, ensure_default_user, get_auth_cookie_name
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 
 
@@ -62,6 +62,10 @@ class Stage1BackendTests(unittest.TestCase):
         self.app = create_app()
         self.app.state.session_local = self.SessionLocal
         self.original_web_dist_dir = getattr(settings, "web_dist_dir", None)
+        self.original_data_dir = getattr(settings, "data_dir", None)
+        self.original_auth_cookie_name = getattr(settings, "auth_cookie_name", None)
+        settings.data_dir = self.temp_dir.name
+        settings.auth_cookie_name = None
 
         def override_db():
             db = self.SessionLocal()
@@ -74,11 +78,13 @@ class Stage1BackendTests(unittest.TestCase):
         self.client = TestClient(self.app)
         with self.SessionLocal() as db:
             user = ensure_default_user(db)
-            self.client.cookies.set("clawswarm_session", build_session_cookie_value(user))
+            self.client.cookies.set(get_auth_cookie_name(), build_session_cookie_value(user))
 
     def tearDown(self) -> None:
         self.app.dependency_overrides.clear()
         settings.web_dist_dir = self.original_web_dist_dir
+        settings.data_dir = self.original_data_dir
+        settings.auth_cookie_name = self.original_auth_cookie_name
         self.engine.dispose()
         self.temp_dir.cleanup()
 
@@ -253,6 +259,21 @@ class Stage1BackendTests(unittest.TestCase):
         response = self.client.get("/api/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"ok": True})
+
+    def test_auth_cookie_name_uses_explicit_setting_when_provided(self) -> None:
+        settings.auth_cookie_name = "clawswarm_session_explicit"
+        self.assertEqual(get_auth_cookie_name(), "clawswarm_session_explicit")
+
+    def test_auth_cookie_name_is_stable_per_data_directory(self) -> None:
+        first = get_auth_cookie_name()
+        second = get_auth_cookie_name()
+
+        self.assertTrue(first.startswith("clawswarm_session_"))
+        self.assertEqual(first, second)
+
+        instance_id_file = Path(settings.data_dir) / "instance-id"
+        self.assertTrue(instance_id_file.is_file())
+        self.assertTrue(instance_id_file.read_text(encoding="utf-8").strip())
 
     def test_list_conversations_hides_direct_conversations_for_disabled_instance(self) -> None:
         with self.SessionLocal() as db:

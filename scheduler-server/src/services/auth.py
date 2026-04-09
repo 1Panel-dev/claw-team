@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import Request, Response
 from sqlalchemy import select
@@ -16,7 +17,7 @@ from src.core.config import settings
 from src.models.app_user import AppUser
 
 
-AUTH_COOKIE_NAME = "clawswarm_session"
+AUTH_COOKIE_NAME_PREFIX = "clawswarm_session"
 AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 10
 PASSWORD_SCHEME = "pbkdf2_sha256"
 PASSWORD_ITERATIONS = 600_000
@@ -86,9 +87,34 @@ def build_session_cookie_value(user: AppUser) -> str:
     return f"{user.id}.{_build_session_signature(user)}"
 
 
+def _instance_id_file() -> Path:
+    return Path(settings.data_dir).expanduser() / "instance-id"
+
+
+def _load_or_create_instance_id() -> str:
+    file_path = _instance_id_file()
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if file_path.is_file():
+        value = file_path.read_text(encoding="utf-8").strip()
+        if value:
+            return value
+
+    value = secrets.token_hex(8)
+    file_path.write_text(f"{value}\n", encoding="utf-8")
+    return value
+
+
+def get_auth_cookie_name() -> str:
+    configured = (settings.auth_cookie_name or "").strip()
+    if configured:
+        return configured
+    return f"{AUTH_COOKIE_NAME_PREFIX}_{_load_or_create_instance_id()}"
+
+
 def set_auth_cookie(response: Response, user: AppUser) -> None:
     response.set_cookie(
-        key=AUTH_COOKIE_NAME,
+        key=get_auth_cookie_name(),
         value=build_session_cookie_value(user),
         httponly=True,
         samesite="lax",
@@ -99,11 +125,11 @@ def set_auth_cookie(response: Response, user: AppUser) -> None:
 
 
 def clear_auth_cookie(response: Response) -> None:
-    response.delete_cookie(key=AUTH_COOKIE_NAME, path="/")
+    response.delete_cookie(key=get_auth_cookie_name(), path="/")
 
 
 def get_current_user_from_request(request: Request, db: Session) -> AppUser | None:
-    raw = request.cookies.get(AUTH_COOKIE_NAME, "").strip()
+    raw = request.cookies.get(get_auth_cookie_name(), "").strip()
     if not raw or "." not in raw:
         return None
     user_id, signature = raw.split(".", 1)
