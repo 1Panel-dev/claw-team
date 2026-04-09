@@ -111,9 +111,9 @@
 import { CopyDocument } from "@element-plus/icons-vue";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 
-import MessageAttachmentCard from "@/components/conversation/MessageAttachmentCard.vue";
-import MessageMarkdown from "@/components/conversation/MessageMarkdown.vue";
-import MessageToolCard from "@/components/conversation/MessageToolCard.vue";
+import MessageAttachmentCard from "@/pages/messages/components/MessageAttachmentCard.vue";
+import MessageMarkdown from "@/pages/messages/components/MessageMarkdown.vue";
+import MessageToolCard from "@/pages/messages/components/MessageToolCard.vue";
 import { useI18n } from "@/composables/useI18n";
 import type { MessageReadApi } from "@/types/api/conversation";
 import type { MessagePartView, MessageView } from "@/types/view/message";
@@ -430,7 +430,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 18px var(--page-shell-pad-x);
+  padding: 18px var(--page-container-pad-x);
   min-height: 0;
   overflow: auto;
   background: #ffffff;

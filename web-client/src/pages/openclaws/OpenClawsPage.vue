@@ -1,6 +1,6 @@
 <template>
-  <div class="page-shell">
-    <section class="page-shell__body" v-loading="syncingAgents" element-loading-background="rgba(122, 122, 122, 0.8)">
+  <div class="page-container">
+    <section class="page-container__body" v-loading="syncingAgents" element-loading-background="rgba(122, 122, 122, 0.8)">
       <el-card shadow="never">
         <template #header>
           <div class="openclaws-page__panel-header">
@@ -176,8 +176,8 @@
 import { Delete, EditPen, Plus, RefreshRight, SwitchButton, VideoPlay } from "@element-plus/icons-vue";
 import {computed, onBeforeUnmount, onMounted, ref} from "vue";
 
-import AgentCreateDrawer from "@/components/openclaw/AgentCreateDrawer.vue";
-import InstanceCreateDrawer from "@/components/openclaw/InstanceCreateDrawer.vue";
+import AgentCreateDrawer from "@/pages/openclaws/components/AgentCreateDrawer.vue";
+import InstanceCreateDrawer from "@/pages/openclaws/components/InstanceCreateDrawer.vue";
 import {useI18n} from "@/composables/useI18n";
 import {useOpenClawStore} from "@/stores/openclaw";
 import type {AgentReadApi} from "@/types/api/agent";
@@ -527,7 +527,7 @@ function handleAgentSubmit(
 </script>
 
 <style scoped>
-.page-shell {
+.page-container {
   height: 100%;
   min-height: 0;
   overflow: auto;

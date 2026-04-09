@@ -1,7 +1,7 @@
 <template>
-  <div class="app-shell">
+  <div class="main-frame">
     <AppTopNav />
-    <main class="app-shell__body">
+    <main class="main-frame__body">
       <slot />
     </main>
   </div>
@@ -9,16 +9,16 @@
 
 <script setup lang="ts">
 /**
- * AppShell 是整套前端应用的稳定外壳。
+ * MainFrame 是整套前端应用的稳定外壳。
  *
  * 它只负责整体结构，不直接耦合消息、任务、OpenClaw 管理这些具体业务。
  * 这样后面模块增加时，不需要重做全局布局。
  */
-import AppTopNav from "@/components/common/AppTopNav.vue";
+import AppTopNav from "@/pages/components/AppTopNav.vue";
 </script>
 
 <style scoped>
-.app-shell {
+.main-frame {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -28,7 +28,7 @@ import AppTopNav from "@/components/common/AppTopNav.vue";
   overflow: hidden;
 }
 
-.app-shell__body {
+.main-frame__body {
   flex: 1;
   min-height: 0;
   padding-bottom: 10px;

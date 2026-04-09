@@ -47,9 +47,9 @@
  */
 import { computed } from "vue";
 
-import AgentDialogueToolbar from "@/components/conversation/AgentDialogueToolbar.vue";
-import MessageComposer from "@/components/conversation/MessageComposer.vue";
-import MessageList from "@/components/conversation/MessageList.vue";
+import AgentDialogueToolbar from "@/pages/messages/components/AgentDialogueToolbar.vue";
+import MessageComposer from "@/pages/messages/components/MessageComposer.vue";
+import MessageList from "@/pages/messages/components/MessageList.vue";
 import { useI18n } from "@/composables/useI18n";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
@@ -227,7 +227,7 @@ async function handleLoadOlderMessages() {
 }
 
 .panel__header {
-  padding: var(--page-shell-pad-top) var(--page-shell-pad-x) 14px;
+  padding: var(--page-container-pad-top) var(--page-container-pad-x) 14px;
   border-bottom: 1px solid var(--color-border);
   background: #ffffff;
 }
@@ -264,7 +264,7 @@ async function handleLoadOlderMessages() {
 }
 
 .panel__error {
-  margin: var(--page-shell-section-gap) var(--page-shell-pad-x) 0;
+  margin: var(--page-container-section-gap) var(--page-container-pad-x) 0;
   padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
   border-radius: var(--radius-md);

@@ -1,7 +1,7 @@
 <template>
-  <div class="page-shell">
-    <section class="page-header page-shell__header">
-      <h1 class="page-header__title page-shell__title">{{ t("tasks.title") }}</h1>
+  <div class="page-container">
+    <section class="page-header page-container__header">
+      <h1 class="page-header__title page-container__title">{{ t("tasks.title") }}</h1>
 
       <el-tabs :model-value="activeStatusTab" class="tasks-tabs" @tab-change="handleTabChange">
         <el-tab-pane
@@ -13,7 +13,7 @@
       </el-tabs>
     </section>
 
-    <section class="table-shell page-shell__body">
+    <section class="table-shell page-container__body">
       <header class="toolbar">
         <div class="toolbar__left">
           <el-button type="primary" @click="createDrawerVisible = true">
@@ -103,8 +103,8 @@ import { computed, h, onMounted, ref } from "vue";
 import ElButton from "element-plus/es/components/button/index";
 import type { Column } from "element-plus/es/components/table-v2/index";
 
-import TaskDetailPane from "@/components/task/TaskDetailPane.vue";
-import TaskCreateDrawer from "@/components/task/TaskCreateDrawer.vue";
+import TaskDetailPane from "@/pages/tasks/components/TaskDetailPane.vue";
+import TaskCreateDrawer from "@/pages/tasks/components/TaskCreateDrawer.vue";
 import { useI18n } from "@/composables/useI18n";
 import { useOpenClawStore } from "@/stores/openclaw";
 import { useTaskStore } from "@/stores/task";

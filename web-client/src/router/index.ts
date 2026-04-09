@@ -15,7 +15,7 @@ import { useAuthStore } from "@/stores/auth";
 import { pinia } from "@/stores/pinia";
 
 const LoginPage = () => import("@/pages/login/LoginPage.vue");
-const MainLayout = () => import("@/layouts/MainLayout.vue");
+const MainLayout = () => import("@/pages/shell/MainLayout.vue");
 const MessagesPage = () => import("@/pages/messages/MessagesPage.vue");
 const OpenClawsPage = () => import("@/pages/openclaws/OpenClawsPage.vue");
 const TasksPage = () => import("@/pages/tasks/TasksPage.vue");

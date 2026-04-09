@@ -1,6 +1,6 @@
 <template>
-  <div class="page-shell">
-    <section class="settings-hero page-card page-shell__header">
+  <div class="page-container">
+    <section class="settings-hero page-card page-container__header">
       <div>
         <div class="settings-card__eyebrow">{{ t("settings.eyebrow") }}</div>
         <h1 class="settings-card__title">{{ t("settings.title") }}</h1>

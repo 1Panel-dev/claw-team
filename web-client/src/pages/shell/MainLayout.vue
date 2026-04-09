@@ -1,5 +1,5 @@
 <template>
-  <AppShell>
+  <MainFrame>
     <div class="main-layout">
       <div class="main-layout__frame">
         <section class="main-layout__content">
@@ -7,7 +7,7 @@
         </section>
       </div>
     </div>
-  </AppShell>
+  </MainFrame>
 </template>
 
 <script setup lang="ts">
@@ -17,7 +17,7 @@
  * 页面内部是否需要分左右、是否存在侧栏，
  * 都应该由各页面自己负责，而不是在布局层分叉成多套结构。
  */
-import AppShell from "@/app/AppShell.vue";
+import MainFrame from "@/pages/shell/MainFrame.vue";
 </script>
 
 <style scoped>
@@ -34,7 +34,7 @@ import AppShell from "@/app/AppShell.vue";
   min-width: 0;
   min-height: 0;
   border: 1px solid #dddddf;
-  border-radius: var(--page-shell-card-radius);
+  border-radius: var(--page-container-radius);
   background: #f5f5f7;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.03);
   overflow: hidden;

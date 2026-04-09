@@ -1,5 +1,5 @@
 <template>
-  <div class="page-shell page-shell--conversation">
+  <div class="page-container page-container--conversation">
     <div class="messages-shell">
       <aside class="messages-shell__sidebar">
         <ConversationSidebar />
@@ -32,9 +32,9 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useRouter } from "vue-router";
 
-import EmptyStateCard from "@/components/common/EmptyStateCard.vue";
-import ConversationPanel from "@/components/conversation/ConversationPanel.vue";
-import ConversationSidebar from "@/components/conversation/ConversationSidebar.vue";
+import EmptyStateCard from "@/pages/components/EmptyStateCard.vue";
+import ConversationPanel from "@/pages/messages/components/ConversationPanel.vue";
+import ConversationSidebar from "@/pages/messages/components/ConversationSidebar.vue";
 import { useI18n } from "@/composables/useI18n";
 import { useConversationTransport } from "@/composables/useConversationTransport";
 import { useAddressBookStore } from "@/stores/addressBook";
@@ -156,7 +156,7 @@ function stopRecentConversationPolling() {
   min-width: 0;
   min-height: 0;
   border: 1px solid #dddddf;
-  border-radius: var(--page-shell-card-radius);
+  border-radius: var(--page-container-radius);
   background: #f5f5f7;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.03);
   overflow: hidden;

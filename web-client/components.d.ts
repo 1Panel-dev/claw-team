@@ -11,13 +11,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AccountDialog: typeof import('./src/components/common/AccountDialog.vue')['default']
-    AgentCreateDrawer: typeof import('./src/components/openclaw/AgentCreateDrawer.vue')['default']
-    AgentDialogueCreateDrawer: typeof import('./src/components/conversation/AgentDialogueCreateDrawer.vue')['default']
-    AgentDialogueToolbar: typeof import('./src/components/conversation/AgentDialogueToolbar.vue')['default']
-    AppTopNav: typeof import('./src/components/common/AppTopNav.vue')['default']
-    ConversationPanel: typeof import('./src/components/conversation/ConversationPanel.vue')['default']
-    ConversationSidebar: typeof import('./src/components/conversation/ConversationSidebar.vue')['default']
     ElAutoResizer: typeof import('element-plus/es')['ElAutoResizer']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
@@ -49,21 +42,8 @@ declare module 'vue' {
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
-    EmptyStateCard: typeof import('./src/components/common/EmptyStateCard.vue')['default']
-    GroupCreateDrawer: typeof import('./src/components/group/GroupCreateDrawer.vue')['default']
-    GroupMemberDrawer: typeof import('./src/components/group/GroupMemberDrawer.vue')['default']
-    InstanceCreateDrawer: typeof import('./src/components/openclaw/InstanceCreateDrawer.vue')['default']
-    MessageAttachmentCard: typeof import('./src/components/conversation/MessageAttachmentCard.vue')['default']
-    MessageComposer: typeof import('./src/components/conversation/MessageComposer.vue')['default']
-    MessageList: typeof import('./src/components/conversation/MessageList.vue')['default']
-    MessageMarkdown: typeof import('./src/components/conversation/MessageMarkdown.vue')['default']
-    MessageToolCard: typeof import('./src/components/conversation/MessageToolCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    TaskCreateDrawer: typeof import('./src/components/task/TaskCreateDrawer.vue')['default']
-    TaskDetailPane: typeof import('./src/components/task/TaskDetailPane.vue')['default']
-    TaskListPane: typeof import('./src/components/task/TaskListPane.vue')['default']
-    TaskOverviewCards: typeof import('./src/components/task/TaskOverviewCards.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

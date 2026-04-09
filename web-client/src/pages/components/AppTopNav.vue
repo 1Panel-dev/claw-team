@@ -71,7 +71,7 @@ import {ArrowDown, UserFilled} from "@element-plus/icons-vue";
 import {onMounted, ref} from "vue";
 import {useRoute, useRouter} from "vue-router";
 
-import AccountDialog from "@/components/common/AccountDialog.vue";
+import AccountDialog from "@/pages/components/AccountDialog.vue";
 import {useAuthStore} from "@/stores/auth";
 
 const {locale, localeOptions, setLocale, t} = useI18n();

@@ -9,19 +9,21 @@
  */
 import { createApp } from "vue";
 
-import App from "@/App.vue";
-import { registerProviders } from "@/app/providers";
+import App from "@/pages/shell/AppRoot.vue";
 import { i18n } from "@/i18n";
+import { router } from "@/router";
+import { pinia } from "@/stores/pinia";
 import { applyInitialTheme } from "@/theme/applyTheme";
 
 import "@/styles/reset.css";
 import "@/styles/tokens.css";
 import "@/styles/base.css";
-import "@/styles/page-shell.css";
+import "@/styles/page-container.css";
 
 const app = createApp(App);
 
-registerProviders(app);
+app.use(pinia);
+app.use(router);
 app.use(i18n);
 applyInitialTheme();
 

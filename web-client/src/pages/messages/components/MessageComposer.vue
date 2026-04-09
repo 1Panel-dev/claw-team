@@ -236,7 +236,7 @@ function captureShortcut(event: KeyboardEvent) {
 .composer {
   display: grid;
   gap: var(--space-3);
-  padding: 14px var(--page-shell-pad-x) var(--page-shell-pad-bottom);
+  padding: 14px var(--page-container-pad-x) var(--page-container-pad-bottom);
   border-top: 1px solid var(--color-border);
   background: #ffffff;
 }

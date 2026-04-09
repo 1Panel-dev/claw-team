@@ -251,9 +251,9 @@ import type { CollapseModelValue } from "element-plus";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
-import GroupCreateDrawer from "@/components/group/GroupCreateDrawer.vue";
-import GroupMemberDrawer from "@/components/group/GroupMemberDrawer.vue";
-import AgentDialogueCreateDrawer from "@/components/conversation/AgentDialogueCreateDrawer.vue";
+import GroupCreateDrawer from "@/pages/messages/components/GroupCreateDrawer.vue";
+import GroupMemberDrawer from "@/pages/messages/components/GroupMemberDrawer.vue";
+import AgentDialogueCreateDrawer from "@/pages/messages/components/AgentDialogueCreateDrawer.vue";
 import { useI18n } from "@/composables/useI18n";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
@@ -684,7 +684,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: var(--page-shell-pad-top) 14px 12px;
+  padding: var(--page-container-pad-top) 14px 12px;
 }
 
 .sidebar__search {
@@ -718,7 +718,7 @@ watch(
   align-content: start;
   gap: 2px;
   min-height: 0;
-  padding: 0 8px var(--page-shell-pad-bottom);
+  padding: 0 8px var(--page-container-pad-bottom);
   overflow: auto;
 }
 
