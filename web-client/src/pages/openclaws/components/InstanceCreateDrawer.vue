@@ -63,18 +63,19 @@
         <el-form-item>
           <template #label>
             <span class="drawer-label-with-tip">
-              <span>{{ t("openclaw.openclawJsonConfig") }}</span>
+              <span>{{ t("openclaw.openclawJsonConfig") }} &nbsp;&nbsp;→</span>
               <el-tooltip :content="t('openclaw.copyOpenclawJsonConfig')" placement="top">
-                <el-button text @click="copyOpenClawConfig">
+                <el-button link @click="copyOpenClawConfig">
                   <el-icon><DocumentCopy /></el-icon>
                 </el-button>
               </el-tooltip>
             </span>
           </template>
           <el-input
-            :model-value="maskedOpenClawConfig"
             type="textarea"
+            @mousedown.prevent
             readonly
+            :model-value="maskedOpenClawConfig"
             :autosize="{ minRows: 12, maxRows: 18 }"
           />
           <div class="drawer-config-help">{{ t("openclaw.openclawJsonConfigHelp") }}</div>
